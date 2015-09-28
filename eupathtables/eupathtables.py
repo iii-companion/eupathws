@@ -125,6 +125,14 @@ class TableInStream(gt.extended.CustomStream):
                                                                  int(f['End']),
                                                                  v['strand'])
                     transcript.add_child(newfeat)
+                    if f['Type'] == 'exon':
+                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                'CDS',
+                                                                int(f['Start']),
+                                                                int(f['End']),
+                                                                v['strand'])
+                        transcript.add_child(newfeat)
+
             # make polypeptide
             polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
                                                              "polypeptide",
