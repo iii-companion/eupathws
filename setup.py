@@ -10,7 +10,7 @@ setup(
     author_email='ss34@sanger.ac.uk',
     url='https://github.com/satta/eupathtables',
     scripts=glob.glob('scripts/*'),
-    license='GPLv3',
+    license='ISC',
     classifiers=[
         'Development Status :: 4 - Beta',
         'Topic :: Scientific/Engineering :: Bio-Informatics',
