@@ -149,7 +149,7 @@ class TableInStream(gt.extended.CustomStream):
                                           urllib.quote(v['product'], safe=' '))
             self.outqueue.append(polypeptide)
 
-            if self.gaf_file and v['GO Terms']:
+            if hasattr(self, 'gaf_file') and v['GO Terms']:
                 terms_used = {}
                 for go in v['GO Terms']:
                     aspect = None
