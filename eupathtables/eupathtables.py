@@ -16,12 +16,15 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import re
-import gt
 import collections
+import datetime
+import gt
 import pprint
+import re
 import urllib
+import sys
 
+today = datetime.date.today()
 
 def iterate(table_file):
     myfile = open(table_file)
@@ -64,7 +67,7 @@ def iterate(table_file):
                 i = 0
                 thisline = dict()
                 for v in re.split('\t', l):
-                    thisline[listidx[i]] = v
+                    thisline[listidx[i]] = v.rstrip()
                     i = i + 1
                 thistable.append(thisline)
                 l = myfile.readline()
@@ -74,13 +77,22 @@ def iterate(table_file):
             yield gene
             gene = dict()
 
-
 class TableInStream(gt.extended.CustomStream):
 
-    def __init__(self, table_file):
+    def __init__(self, table_file, gaf_file=None, taxon_id=None):
         gt.extended.CustomStream.__init__(self)
         self.iterator = iterate(table_file)
         self.outqueue = collections.deque()
+        self.aspects = {'Biological Process': 'P',
+                        'Molecular Function': 'F',
+                        'Cellular Component': 'C'}
+        if gaf_file:
+          self.gaf_file = open(gaf_file, 'w+')
+          self.gaf_file.write("!gaf-version: 1.0\n")
+          self.taxon_id = taxon_id
+
+    def aspect2oneletter(self, aspect):
+        return self.aspects[aspect]
 
     def next(self):
         if len(self.outqueue) > 0:
@@ -89,6 +101,7 @@ class TableInStream(gt.extended.CustomStream):
 
         if not v:
             return None
+        # make gene
         gene = gt.extended.FeatureNode.create_new(v['seqid'], "gene",
                                                   int(v['start']),
                                                   int(v['stop']), v['strand'])
@@ -96,12 +109,14 @@ class TableInStream(gt.extended.CustomStream):
         if v['name'] != 'null':
             gene.add_attribute("Name", v['name'])
         if v['type'] == 'protein coding':
+            # make transcript
             transcript = gt.extended.FeatureNode.create_new(v['seqid'], "mRNA",
                                                             int(v['start']),
                                                             int(v['stop']),
                                                             v['strand'])
             transcript.add_attribute("ID", v['ID'] + ".1")
             gene.add_child(transcript)
+            # make introns/exons/...
             if v['Gene Model']:
                 for f in v['Gene Model']:
                     newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
@@ -110,6 +125,7 @@ class TableInStream(gt.extended.CustomStream):
                                                                  int(f['End']),
                                                                  v['strand'])
                     transcript.add_child(newfeat)
+            # make polypeptide
             polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
                                                              "polypeptide",
                                                              int(v['start']),
@@ -123,7 +139,28 @@ class TableInStream(gt.extended.CustomStream):
                 polypeptide.add_attribute("product",
                                           'term%3D' +
                                           urllib.quote(v['product'], safe=' '))
-
             self.outqueue.append(polypeptide)
+
+            if self.gaf_file and v['GO Terms']:
+                terms_used = {}
+                for go in v['GO Terms']:
+                    aspect = None
+                    try:
+                        aspect = self.aspect2oneletter(go['Ontology'])
+                    except:
+                        sys.stderr.write("error trying to get aspect for: "
+                                         + str(go) + "\n")
+                        continue
+                    if aspect and not go['GO ID'] in terms_used:
+                        self.gaf_file.write("EuPathDB\t" + str(v['ID']) + "\t"
+                                        + str(v['ID']) + "\t\t" + go['GO ID']
+                                        + "\tGO_REF:0000001\t"
+                                        + go['Evidence Code'] + "\t\t"
+                                        + aspect + "\t" + v['product'] + "\t\t"
+                                        + "gene\ttaxon:" + str(self.taxon_id)
+                                        + "\t"
+                                        + today.strftime('%Y%m%d')
+                                        + "\tEuPathDB\n")
+                        terms_used[go['GO ID']] = True
 
         return gene
