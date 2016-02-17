@@ -95,80 +95,92 @@ class TableInStream(gt.extended.CustomStream):
         return self.aspects[aspect]
 
     def next(self):
-        if len(self.outqueue) > 0:
-            return self.outqueue.popleft()
-        v = self.iterator.next()
-
-        if not v:
-            return None
         # make gene
-        gene = gt.extended.FeatureNode.create_new(v['seqid'], "gene",
-                                                  int(v['start']),
-                                                  int(v['stop']), v['strand'])
-        gene.add_attribute("ID", v['ID'])
-        if v['name'] != 'null':
-            gene.add_attribute("Name", v['name'])
-        if v['type'] == 'protein coding':
-            # make transcript
-            transcript = gt.extended.FeatureNode.create_new(v['seqid'], "mRNA",
-                                                            int(v['start']),
-                                                            int(v['stop']),
-                                                            v['strand'])
-            transcript.add_attribute("ID", v['ID'] + ".1")
-            gene.add_child(transcript)
-            # make introns/exons/...
-            if v['Gene Model']:
-                for f in v['Gene Model']:
-                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                                 f['Type'],
-                                                                 int(f['Start']),
-                                                                 int(f['End']),
-                                                                 v['strand'])
-                    transcript.add_child(newfeat)
-                    if f['Type'] == 'exon':
-                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                                'CDS',
-                                                                int(f['Start']),
-                                                                int(f['End']),
-                                                                v['strand'])
-                        transcript.add_child(newfeat)
+        while True:
+            try:
+                if len(self.outqueue) > 0:
+                    return self.outqueue.popleft()
+                v = self.iterator.next()
 
-            # make polypeptide
-            polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                             "polypeptide",
-                                                             int(v['start']),
-                                                             int(v['stop']),
-                                                             v['strand'])
-            polypeptide.add_attribute("ID",
-                                      transcript.get_attribute("ID") + ":pep")
-            polypeptide.add_attribute("Derives_from",
-                                      transcript.get_attribute("ID"))
-            if v['product'] != "null":
-                polypeptide.add_attribute("product",
-                                          'term%3D' +
-                                          urllib.quote(v['product'], safe=' '))
-            self.outqueue.append(polypeptide)
+                if not v:
+                    return None
+                gene = gt.extended.FeatureNode.create_new(v['seqid'], "gene",
+                                                          int(v['start']),
+                                                          int(v['stop']), v['strand'])
+                gene.add_attribute("ID", v['ID'])
+                if v['name'] != 'null':
+                    gene.add_attribute("Name", v['name'])
+                if v['type'] == 'protein coding':
+                    # make transcript
+                    transcript = gt.extended.FeatureNode.create_new(v['seqid'], "mRNA",
+                                                                    int(v['start']),
+                                                                    int(v['stop']),
+                                                                    v['strand'])
+                    transcript.add_attribute("ID", v['ID'] + ".1")
+                    gene.add_child(transcript)
+                    # make introns/exons/...
+                    if v['Gene Model']:
+                        for f in v['Gene Model']:
+                            if int(f['Start']) <= int(f['End']):
+                                newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                             f['Type'],
+                                                                             int(f['Start']),
+                                                                             int(f['End']),
+                                                                             v['strand'])
+                                transcript.add_child(newfeat)
+                                if f['Type'] == 'exon':
+                                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                            'CDS',
+                                                                            int(f['Start']),
+                                                                            int(f['End']),
+                                                                            v['strand'])
+                                    transcript.add_child(newfeat)
+                                    newfeat.set_phase(0)
+                            else:
+                                sys.stderr.write("invalid feature range, skipping "
+                                                 + str(f['Type']) + " " + v['ID']
+                                                 + "\n")
 
-            if hasattr(self, 'gaf_file') and v['GO Terms']:
-                terms_used = {}
-                for go in v['GO Terms']:
-                    aspect = None
-                    try:
-                        aspect = self.aspect2oneletter(go['Ontology'])
-                    except:
-                        sys.stderr.write("error trying to get aspect for: "
-                                         + str(go) + "\n")
-                        continue
-                    if aspect and not go['GO ID'] in terms_used:
-                        self.gaf_file.write("EuPathDB\t" + str(v['ID']) + "\t"
-                                        + str(v['ID']) + "\t\t" + go['GO ID']
-                                        + "\tGO_REF:0000001\t"
-                                        + go['Evidence Code'] + "\t\t"
-                                        + aspect + "\t" + v['product'] + "\t\t"
-                                        + "gene\ttaxon:" + str(self.taxon_id)
-                                        + "\t"
-                                        + today.strftime('%Y%m%d')
-                                        + "\tEuPathDB\n")
-                        terms_used[go['GO ID']] = True
+                    # make polypeptide
+                    polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                     "polypeptide",
+                                                                     int(v['start']),
+                                                                     int(v['stop']),
+                                                                     v['strand'])
+                    polypeptide.add_attribute("ID",
+                                              transcript.get_attribute("ID") + ":pep")
+                    polypeptide.add_attribute("Derives_from",
+                                              transcript.get_attribute("ID"))
+                    if v['product'] != "null":
+                        polypeptide.add_attribute("product",
+                                                  'term%3D' +
+                                                  urllib.quote(v['product'], safe=' '))
+                    self.outqueue.append(polypeptide)
+
+                    if hasattr(self, 'gaf_file') and v['GO Terms']:
+                        terms_used = {}
+                        for go in v['GO Terms']:
+                            aspect = None
+                            try:
+                                aspect = self.aspect2oneletter(go['Ontology'])
+                            except:
+                                sys.stderr.write("error trying to get aspect for: "
+                                                 + str(go) + "\n")
+                                continue
+                            if aspect and not go['GO ID'] in terms_used:
+                                self.gaf_file.write("EuPathDB\t" + str(v['ID']) + "\t"
+                                                + str(v['ID']) + "\t\t" + go['GO ID']
+                                                + "\tGO_REF:0000001\t"
+                                                + go['Evidence Code'] + "\t\t"
+                                                + aspect + "\t" + v['product'] + "\t\t"
+                                                + "gene\ttaxon:" + str(self.taxon_id)
+                                                + "\t"
+                                                + today.strftime('%Y%m%d')
+                                                + "\tEuPathDB\n")
+                                terms_used[go['GO ID']] = True
+                break
+            except:
+                sys.stderr.write("error creating feature for %s\n" % v['ID'])
+                continue
 
         return gene
