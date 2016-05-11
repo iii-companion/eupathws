@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 #  Author: Sascha Steinbiss <ss34@sanger.ac.uk>
-#  Copyright (c) 2015 Genome Research Ltd
+#  Copyright (c) 2015-2016 Genome Research Ltd
 #
 #  Permission to use, copy, modify, and distribute this software for any
 #  purpose with or without fee is hereby granted, provided that the above
@@ -31,7 +31,7 @@ def iterate(table_file):
     gene = dict()
     while True:
         l = myfile.readline()
-        if l == '':
+        if l == '' or l == None:
             yield None
         m = re.match(r"Gene ID: (.*)$", l)
         if m and m.group(1):
