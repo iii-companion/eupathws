@@ -120,7 +120,7 @@ class TableInStream(gt.extended.CustomStream):
         # make gene
         v = None
         while True:
-            #try:
+            try:
                 if len(self.outqueue) > 0:
                     return self.outqueue.popleft()
                 v = self.iterator.next()
@@ -181,8 +181,6 @@ class TableInStream(gt.extended.CustomStream):
                         right_c = None
 
                         if 'utr_5' in v or 'utr_3' in v:
-                            #if 'utr_3' in v:
-                            #    print(">>>> %s (%s) has 3 prime UTR %s" % (v['ID'], v['strand'], str(transcript_length - v['utr_3'])))
                             if v['strand'] == '-':
                                 if 'utr_5' in v:
                                     right_c = int(v['utr_5'])
@@ -220,7 +218,6 @@ class TableInStream(gt.extended.CustomStream):
                                     scoord = int(f['Start'])
                                     ecoord = int(f['End'])
                                     newend = left_i + (int(f['End']) - int(f['Start']) + 1)
-                                    #print(">>>> %s: newend at %d" % (v['ID'], newend))
 
                                     if left_key in v:
                                         if newend > left_c:
@@ -232,7 +229,6 @@ class TableInStream(gt.extended.CustomStream):
                                                                  v['strand'])
                                                 transcript.add_child(newfeat)
                                                 scoord = int(f['Start']) + (left_c - left_i)
-                                                #print("left_i %d left_c %d" % (left_i, left_c))
                                             else:
                                                 scoord = int(f['Start'])
                                         else:
@@ -245,7 +241,6 @@ class TableInStream(gt.extended.CustomStream):
 
                                     if right_key in v:
                                         if newend > (transcript_length - right_c):
-                                            #print(">>>> %s: crossed 3 prime UTR line at %d" % (v['ID'], newend))
                                             if left_i < (transcript_length - right_c):
                                                 newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
                                                                  self.finaltype(v, right_type),
@@ -269,7 +264,6 @@ class TableInStream(gt.extended.CustomStream):
                                                                      v['strand'])
                                         transcript.add_child(newfeat)
                                     left_i = newend
-                                #print(">>> %s left_i %d" % (v['ID'],left_i))
 
                             else:
                                 sys.stderr.write("invalid feature range, skipping "
@@ -315,11 +309,12 @@ class TableInStream(gt.extended.CustomStream):
                                 terms_used[go['GO ID']] = True
 
                 break
-            # except:
-            #     if v:
-            #         sys.stderr.write("error creating feature for %s\n" % v['ID'])
-            #     else:
-            #         sys.stderr.write("error creating feature , no ID yet\n")
-            #     continue
+
+            except:
+                if v:
+                    sys.stderr.write("error creating feature for %s\n" % v['ID'])
+                else:
+                    sys.stderr.write("error creating feature , no ID yet\n")
+                continue
 
         return gene
