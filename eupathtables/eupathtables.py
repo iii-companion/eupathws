@@ -24,7 +24,7 @@ from go_collection import GOCollection
 try:
     import gt
     _gt_available = True
-except ImportError:
+except exceptions.ImportError:
     import warnings
     warnings.warn("GenomeTools Python bindings not found, stream interface not available")
     _gt_available = False
@@ -113,219 +113,220 @@ class FlatFileIterator(object):
                 return self.gene
 
 
-class TableInStream(gt.extended.CustomStream):
+if _gt_available:
+    class TableInStream(gt.extended.CustomStream):
 
-    def __init__(self, instream, taxon_id=None):
-        gt.extended.CustomStream.__init__(self)
-        self.iterator = FlatFileIterator(instream)
-        self.outqueue = collections.deque()
-        self.go_coll = GOCollection(taxon_id)
-        self.uniprots = {}
-        self.typemaps = {'gene': 'pseudogene',
-                         'mRNA': 'pseudogenic_transcript',
-                         'rRNA': 'pseudogenic_transcript',
-                         'tRNA': 'pseudogenic_transcript',
-                         'exon': 'pseudogenic_exon'}
+        def __init__(self, instream, taxon_id=None):
+            gt.extended.CustomStream.__init__(self)
+            self.iterator = FlatFileIterator(instream)
+            self.outqueue = collections.deque()
+            self.go_coll = GOCollection(taxon_id)
+            self.uniprots = {}
+            self.typemaps = {'gene': 'pseudogene',
+                             'mRNA': 'pseudogenic_transcript',
+                             'rRNA': 'pseudogenic_transcript',
+                             'tRNA': 'pseudogenic_transcript',
+                             'exon': 'pseudogenic_exon'}
 
-    def get_transcript_length(self, v):
-        transcript_length = 0
-        for f in v['Gene Model']:
-            if int(f['Start']) <= int(f['End']) and f['Type'] == 'exon':
-                transcript_length += (int(f['End']) - int(f['Start']) + 1)
-        return transcript_length
-
-    def finaltype(self, v, mtype):
-        if 'pseudo' in v and v['pseudo']:
-            if mtype in self.typemaps:
-                return self.typemaps[mtype]
-        return mtype
-
-    def make_noncoding(self, v, gtype, gene):
-        rna = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, gtype),
-                                                 int(v['start']), int(v['stop']),
-                                                 v['strand'])
-        rna.add_attribute("ID", v['ID'] + ":" + gtype)
-        gene.add_child(rna)
-        if 'Gene Model' in v:
+        def get_transcript_length(self, v):
+            transcript_length = 0
             for f in v['Gene Model']:
-                if int(f['Start']) <= int(f['End']):
-                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                                 self.finaltype(v, f['Type']),
-                                                                 int(f['Start']),
-                                                                 int(f['End']),
-                                                                 v['strand'])
-                    rna.add_child(newfeat)
-                else:
-                    sys.stderr.write("invalid feature range, skipping "
-                                     + str(f['Type']) + " " + v['ID']
-                                     + "\n")
+                if int(f['Start']) <= int(f['End']) and f['Type'] == 'exon':
+                    transcript_length += (int(f['End']) - int(f['Start']) + 1)
+            return transcript_length
 
-    def make_coding(self, v, gene):
-        transcript = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "mRNA"),
-                                                        int(v['start']),
-                                                        int(v['stop']),
-                                                        v['strand'])
-        transcript.add_attribute("ID", v['ID'] + ".1")
-        gene.add_child(transcript)
-        if 'Gene Model' in v:
-            newend = 1
-            left_i = 0
-            left_type = 'five_prime_UTR'
-            left_key = 'utr_5'
-            right_type = 'three_prime_UTR'
-            right_key = 'utr_3'
-            left_c = None
-            right_c = None
+        def finaltype(self, v, mtype):
+            if 'pseudo' in v and v['pseudo']:
+                if mtype in self.typemaps:
+                    return self.typemaps[mtype]
+            return mtype
 
-            if 'utr_5' in v or 'utr_3' in v:
-                if v['strand'] == '-':
-                    if 'utr_5' in v:
-                        right_c = int(v['utr_5'])
-                    if 'utr_3' in v:
-                        left_c = int(v['utr_3'])
-                    left_type = 'three_prime_UTR'
-                    right_type = 'five_prime_UTR'
-                    left_key = 'utr_3'
-                    right_key = 'utr_5'
-                else:
-                    if 'utr_5' in v:
-                        left_c = int(v['utr_5'])
-                    if 'utr_3' in v:
-                        right_c = int(v['utr_3'])
-
-            if v['strand'] == '-':
-                v['Gene Model'].reverse()
-
-            transcript_length = self.get_transcript_length(v)
-
-            for f in v['Gene Model']:
-                if int(f['Start']) <= int(f['End']):
-                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                                 self.finaltype(v, f['Type']),
-                                                                 int(f['Start']),
-                                                                 int(f['End']),
-                                                                 v['strand'])
-                    transcript.add_child(newfeat)
-
-                    # decide whether to make CDS
-                    if f['Type'] == 'exon':
-                        scoord = int(f['Start'])
-                        ecoord = int(f['End'])
-                        newend = left_i + (int(f['End']) - int(f['Start']) + 1)
-
-                        if left_key in v:
-                            if newend > left_c:
-                                if left_i < left_c:
-                                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                    self.finaltype(v, left_type),
-                                                    scoord,
-                                                    int(f['Start']) + (left_c - left_i) - 1,
-                                                    v['strand'])
-                                    transcript.add_child(newfeat)
-                                    scoord = int(f['Start']) + (left_c - left_i)
-                                else:
-                                    scoord = int(f['Start'])
-                            else:
-                                newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                    self.finaltype(v, left_type),
-                                                    scoord, ecoord,
-                                                    v['strand'])
-                                transcript.add_child(newfeat)
-                                scoord = None
-
-                        if right_key in v:
-                            if newend > (transcript_length - right_c):
-                                if left_i < (transcript_length - right_c):
-                                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                    self.finaltype(v, right_type),
-                                                    int(f['Start']) + ((transcript_length - right_c) - left_i),
-                                                    ecoord,
-                                                    v['strand'])
-                                    transcript.add_child(newfeat)
-                                    ecoord = int(f['Start']) + ((transcript_length - right_c) - left_i - 1)
-                                else:
-                                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                     self.finaltype(v, right_type),
-                                                     scoord, ecoord,
+        def make_noncoding(self, v, gtype, gene):
+            rna = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, gtype),
+                                                     int(v['start']), int(v['stop']),
                                                      v['strand'])
-                                    transcript.add_child(newfeat)
-                                    ecoord = None
+            rna.add_attribute("ID", v['ID'] + ":" + gtype)
+            gene.add_child(rna)
+            if 'Gene Model' in v:
+                for f in v['Gene Model']:
+                    if int(f['Start']) <= int(f['End']):
+                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                     self.finaltype(v, f['Type']),
+                                                                     int(f['Start']),
+                                                                     int(f['End']),
+                                                                     v['strand'])
+                        rna.add_child(newfeat)
+                    else:
+                        sys.stderr.write("invalid feature range, skipping "
+                                         + str(f['Type']) + " " + v['ID']
+                                         + "\n")
 
-                        if ecoord and scoord:
-                            newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                         self.finaltype(v, 'CDS'),
+        def make_coding(self, v, gene):
+            transcript = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "mRNA"),
+                                                            int(v['start']),
+                                                            int(v['stop']),
+                                                            v['strand'])
+            transcript.add_attribute("ID", v['ID'] + ".1")
+            gene.add_child(transcript)
+            if 'Gene Model' in v:
+                newend = 1
+                left_i = 0
+                left_type = 'five_prime_UTR'
+                left_key = 'utr_5'
+                right_type = 'three_prime_UTR'
+                right_key = 'utr_3'
+                left_c = None
+                right_c = None
+
+                if 'utr_5' in v or 'utr_3' in v:
+                    if v['strand'] == '-':
+                        if 'utr_5' in v:
+                            right_c = int(v['utr_5'])
+                        if 'utr_3' in v:
+                            left_c = int(v['utr_3'])
+                        left_type = 'three_prime_UTR'
+                        right_type = 'five_prime_UTR'
+                        left_key = 'utr_3'
+                        right_key = 'utr_5'
+                    else:
+                        if 'utr_5' in v:
+                            left_c = int(v['utr_5'])
+                        if 'utr_3' in v:
+                            right_c = int(v['utr_3'])
+
+                if v['strand'] == '-':
+                    v['Gene Model'].reverse()
+
+                transcript_length = self.get_transcript_length(v)
+
+                for f in v['Gene Model']:
+                    if int(f['Start']) <= int(f['End']):
+                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                                     self.finaltype(v, f['Type']),
+                                                                     int(f['Start']),
+                                                                     int(f['End']),
+                                                                     v['strand'])
+                        transcript.add_child(newfeat)
+
+                        # decide whether to make CDS
+                        if f['Type'] == 'exon':
+                            scoord = int(f['Start'])
+                            ecoord = int(f['End'])
+                            newend = left_i + (int(f['End']) - int(f['Start']) + 1)
+
+                            if left_key in v:
+                                if newend > left_c:
+                                    if left_i < left_c:
+                                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                        self.finaltype(v, left_type),
+                                                        scoord,
+                                                        int(f['Start']) + (left_c - left_i) - 1,
+                                                        v['strand'])
+                                        transcript.add_child(newfeat)
+                                        scoord = int(f['Start']) + (left_c - left_i)
+                                    else:
+                                        scoord = int(f['Start'])
+                                else:
+                                    newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                        self.finaltype(v, left_type),
+                                                        scoord, ecoord,
+                                                        v['strand'])
+                                    transcript.add_child(newfeat)
+                                    scoord = None
+
+                            if right_key in v:
+                                if newend > (transcript_length - right_c):
+                                    if left_i < (transcript_length - right_c):
+                                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                        self.finaltype(v, right_type),
+                                                        int(f['Start']) + ((transcript_length - right_c) - left_i),
+                                                        ecoord,
+                                                        v['strand'])
+                                        transcript.add_child(newfeat)
+                                        ecoord = int(f['Start']) + ((transcript_length - right_c) - left_i - 1)
+                                    else:
+                                        newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                         self.finaltype(v, right_type),
                                                          scoord, ecoord,
                                                          v['strand'])
-                            transcript.add_child(newfeat)
-                        left_i = newend
+                                        transcript.add_child(newfeat)
+                                        ecoord = None
 
-                else:
-                    sys.stderr.write("invalid feature range, skipping "
-                                     + str(f['Type']) + " " + v['ID']
-                                     + "\n")
+                            if ecoord and scoord:
+                                newfeat = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                             self.finaltype(v, 'CDS'),
+                                                             scoord, ecoord,
+                                                             v['strand'])
+                                transcript.add_child(newfeat)
+                            left_i = newend
 
-        # make polypeptide
-        polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
-                                                         "polypeptide",
-                                                         int(v['start']),
-                                                         int(v['stop']),
-                                                         v['strand'])
-        polypeptide.add_attribute("ID",
-                                  transcript.get_attribute("ID") + ":pep")
-        polypeptide.add_attribute("Derives_from",
-                                  transcript.get_attribute("ID"))
-        if 'product' in v and v['product'] != "null":
-            polypeptide.add_attribute("product",
-                                      'term%3D' +
-                                      urllib.quote(v['product'], safe=' '))
-        self.outqueue.append(polypeptide)
+                    else:
+                        sys.stderr.write("invalid feature range, skipping "
+                                         + str(f['Type']) + " " + v['ID']
+                                         + "\n")
 
-        # register GO terms
-        if self.go_coll:
-            self.go_coll.add_item(v)
+            # make polypeptide
+            polypeptide = gt.extended.FeatureNode.create_new(v['seqid'],
+                                                             "polypeptide",
+                                                             int(v['start']),
+                                                             int(v['stop']),
+                                                             v['strand'])
+            polypeptide.add_attribute("ID",
+                                      transcript.get_attribute("ID") + ":pep")
+            polypeptide.add_attribute("Derives_from",
+                                      transcript.get_attribute("ID"))
+            if 'product' in v and v['product'] != "null":
+                polypeptide.add_attribute("product",
+                                          'term%3D' +
+                                          urllib.quote(v['product'], safe=' '))
+            self.outqueue.append(polypeptide)
 
-    def next(self):
-        while True:
-            #try:
-                if len(self.outqueue) > 0:
-                    return self.outqueue.popleft()
+            # register GO terms
+            if self.go_coll:
+                self.go_coll.add_item(v)
 
-                try:
-                    v = self.iterator.next()
-                except exceptions.StopIteration:
-                    return None
-                if not v:
-                    return None
+        def next(self):
+            while True:
+                #try:
+                    if len(self.outqueue) > 0:
+                        return self.outqueue.popleft()
 
-                gene = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "gene"),
-                                                          int(v['start']),
-                                                          int(v['stop']), v['strand'])
-                gene.add_attribute("ID", v['ID'])
-                if 'name' in v:
-                    gene.add_attribute("Name", v['name'])
+                    try:
+                        v = self.iterator.next()
+                    except exceptions.StopIteration:
+                        return None
+                    if not v:
+                        return None
 
-                # track UniProtID -> gene mappings
-                # XXX handle multiple transcripts per product once supported by
-                # EuPathDB!
-                if 'uniprot_id' in v:
-                    self.uniprots[v['uniprot_id']] = v['ID']
+                    gene = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "gene"),
+                                                              int(v['start']),
+                                                              int(v['stop']), v['strand'])
+                    gene.add_attribute("ID", v['ID'])
+                    if 'name' in v:
+                        gene.add_attribute("Name", v['name'])
 
-                # non-coding RNA
-                m = re.match(r"(.RNA) encoding", v['type'])
-                if m:
-                    self.make_noncoding(v, m.group(1), gene)
+                    # track UniProtID -> gene mappings
+                    # XXX handle multiple transcripts per product once supported by
+                    # EuPathDB!
+                    if 'uniprot_id' in v:
+                        self.uniprots[v['uniprot_id']] = v['ID']
 
-                # protein coding gene
-                if v['type'] == 'protein coding':
-                    self.make_coding(v, gene)
+                    # non-coding RNA
+                    m = re.match(r"(.RNA) encoding", v['type'])
+                    if m:
+                        self.make_noncoding(v, m.group(1), gene)
 
-                break
+                    # protein coding gene
+                    if v['type'] == 'protein coding':
+                        self.make_coding(v, gene)
 
-            #except:
-            #    if v:
-            #        sys.stderr.write("error creating feature for %s\n" % v['ID'])
-            #    else:
-            #        sys.stderr.write("error creating feature , no ID yet\n")
-            #    continue
+                    break
 
-        return gene
+                #except:
+                #    if v:
+                #        sys.stderr.write("error creating feature for %s\n" % v['ID'])
+                #    else:
+                #        sys.stderr.write("error creating feature , no ID yet\n")
+                #    continue
+
+            return gene

@@ -1,4 +1,4 @@
-# EuPathTables
+# EuPathTables [![Build Status](https://api.travis-ci.org/sanger-pathogens/eupathtables.svg)](https://travis-ci.org/sanger-pathogens/eupathtables)
 This package provides a Python interface for reading and converting EuPathDB 'gene information table' files as they are provided on the EuPathDB download site. The format in question is a structured text file in a custom format, containing most of the data available in the database in question. Here's an [example file](http://fungidb.org/common/downloads/release-28/Aniger_ATCC1015/txt/FungiDB-28_Aniger_ATCC1015Gene.txt).
 
 EuPathTables also recognises UTRs and pseudogenes and provides this information in appropriate fields/types.
