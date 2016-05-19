@@ -1,7 +1,7 @@
 # EuPathTables
 This package provides a Python interface for reading and converting EuPathDB 'gene information table' files as they are provided on the EuPathDB download site. The format in question is a structured text file in a custom format, containing most of the data available in the database in question. Here's an [example file](http://fungidb.org/common/downloads/release-28/Aniger_ATCC1015/txt/FungiDB-28_Aniger_ATCC1015Gene.txt).
 
-EuPathTables also recognizes UTRs and pseudogenes and provides this information in appropriate fields/types.
+EuPathTables also recognises UTRs and pseudogenes and provides this information in appropriate fields/types.
 
 ## Usage
 There are two ways of accessing the information in the file: via a Python iterator returning one dict per gene, or via a GenomeTools input stream (which requires the [GenomeTools Python bindings](https://github.com/genometools/genometools/tree/master/gtpython)). This stream directly returns GenomeTools feature nodes for processing directly from the table without having to create GFF first.
