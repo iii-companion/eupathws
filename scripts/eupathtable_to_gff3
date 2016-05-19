@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 #  Author: Sascha Steinbiss <ss34@sanger.ac.uk>
-#  Copyright (c) 2015 Genome Research Ltd
+#  Copyright (c) 2015-2016 Genome Research Ltd
 #
 #  Permission to use, copy, modify, and distribute this software for any
 #  purpose with or without fee is hereby granted, provided that the above
@@ -19,22 +19,34 @@
 import argparse
 import eupathtables
 import gt
-import sys
 
 parser = argparse.ArgumentParser(description='Convert EuPathDB flat file ' +
-                                              'format into Companion '
-                                              'compatible reference input.')
-parser.add_argument('infile', metavar='FILE', type=str, help='input file')
+                                             'format into Companion '
+                                             'compatible reference input.')
+parser.add_argument('infile', metavar='INPUT_FILE', type=str, help='input file')
 parser.add_argument('-g', '--gaf', metavar='FILE', type=str,
-                    help='GAF file to write', dest='gaffile')
+                    help='GAF file to write (will be overwritten without warning!)',
+                    dest='gaffile')
+parser.add_argument('-i', '--ingaf', metavar='FILE', type=str,
+                    help='input GAF file to include in resulting GAF',
+                    dest='ingaffile')
 parser.add_argument('-t', '--taxon', metavar='TID', type=int,
                     help='taxon ID to use in GAF file', dest='taxon_id')
+parser.add_argument('-n', '--no-gff', action="store_true",
+                    help='do not output GFF3', dest='no_gff')
 args = parser.parse_args()
 
-table_in_stream = eupathtables.TableInStream(args.infile, args.gaffile,
-                                             args.taxon_id)
-gff_out_stream = gt.extended.GFF3OutStream(table_in_stream)
+laststream = table_in_stream = eupathtables.TableInStream(open(args.infile),
+                                                          args.taxon_id)
+if not args.no_gff:
+    laststream = gff_out_stream = gt.extended.GFF3OutStream(table_in_stream)
 
-fn = gff_out_stream.next_tree()
+fn = laststream.next_tree()
 while fn:
-    fn = gff_out_stream.next_tree()
+    fn = laststream.next_tree()
+
+if args.gaffile:
+    if args.ingaffile:
+        it = eupathtables.GAFIterator(open(args.ingaffile))
+        table_in_stream.go_coll.add_from_gaf_iterator(it, table_in_stream)
+    table_in_stream.go_coll.to_gafv1(open(args.gaffile, "w+"))
