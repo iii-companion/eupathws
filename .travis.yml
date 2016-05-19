@@ -1,4 +1,5 @@
 language: python
+
 addons:
   apt:
     packages:
@@ -9,6 +10,7 @@ cache:
   - "$HOME/.cache/pip"
 python:
   - "2.7"
-sudo: false
+sudo: required
+dist: trusty
 script:
   - "python setup.py nosetests"
