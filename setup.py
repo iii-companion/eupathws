@@ -1,6 +1,11 @@
 import glob
 from setuptools import setup, find_packages
 
+try:
+    import multiprocessing
+except ImportError:
+    pass
+
 setup(
     name='eupathtables',
     version='0.1',
@@ -9,6 +14,8 @@ setup(
     author='Sascha Steinbiss',
     author_email='ss34@sanger.ac.uk',
     url='https://github.com/satta/eupathtables',
+    test_suite='nose.collector',
+    tests_require=['nose >= 1.3'],
     scripts=glob.glob('scripts/*'),
     license='ISC',
     classifiers=[

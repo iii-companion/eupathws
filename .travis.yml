@@ -1,0 +1,23 @@
+language: python
+
+addons:
+  apt:
+    packages:
+      - python-nose
+      - python-setuptools
+
+install:
+  - sudo bash eupathtables/tests/travis.setup-gt.sh > /dev/null
+
+virtualenv:
+  system_site_packages: true
+
+python: 
+  - "2.7"
+
+sudo: required
+
+dist: trusty
+
+script:
+  - python setup.py test
