@@ -16,9 +16,11 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import exceptions
-
-class GAFError(exceptions.RuntimeError):
+try:
+    from exceptions import StopIteration
+except:
+    pass
+class GAFError(RuntimeError):
     pass
 
 class GAFIterator(object):
@@ -46,4 +48,4 @@ class GAFIterator(object):
             out = dict(zip(self.keys, arr))
             return out
         else:
-            raise exceptions.StopIteration
+            raise StopIteration

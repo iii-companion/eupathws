@@ -17,10 +17,16 @@
 
 import collections
 import re
-import exceptions
+import requests
+import os
+import json
+try:
+    import exceptions
+except:
+    pass
 import urllib
 import sys
-from go_collection import GOCollection
+from eupathtables.go_collection import GOCollection
 try:
     import gt
     _gt_available = True
@@ -28,6 +34,74 @@ except exceptions.ImportError:
     import warnings
     warnings.warn("GenomeTools Python bindings not found, stream interface not available")
     _gt_available = False
+
+class WebServiceIterator(object):
+
+    def _json_to_gene(self, item):
+        gene = {}
+        transcripts = {}
+        gene['ID'] = item['id']
+        for t in item['tables']:
+            gene[t['name']] = {}
+            for r in t['rows']:
+                target_transcripts = None
+                for f in r['fields']:
+                    if f['name'] == 'transcript_ids':
+                        target_transcripts = f['value'].split(', ')
+                        print(target_transcripts)
+                assert(target_transcripts is not None)
+                for f in r['fields']:
+                    subfeat = {}
+                    if f['name'] == 'sequence_id':
+                        subfeat['seqid'] = f['value']
+                    if f['name'] == 'gm_start':
+                        subfeat['start'] = int(f['value'])
+                    if f['name'] == 'gm_end':
+                        subfeat['end'] = int(f['value'])
+                    if f['name'] == 'is_reversed':
+                        subfeat['strand'] = "+-"[int(f['value'])]
+                for tt in target_transcripts:
+                    if not tt in transcripts:
+                        transcripts[tt] = []
+                    transcripts[tt].append(subfeat)
+        gene.transcripts = transcripts
+
+        return gene
+
+    def __init__(self, database, organism, cache=False):
+        self.db = database
+        self.organism = organism
+        self.cachefilename = self.db + "_" + organism.replace(" ", "_") + ".txt"
+        self.fields = ['primary_key',
+                       'chromosome',
+                       'gene_type',
+                       'is_pseudo',
+                       'strand',
+                       'source_id',
+                       'sequence_id',
+                       'five_prime_utr_length',
+                       'three_prime_utr_length']
+        self.tables = ['GeneModelDump',
+                       'Notes',
+                       'PubMed',
+                       'GOTerms']
+        url = ('http://{0}/webservices/GeneQuestions/GenesByTaxonGene.json?' +
+               'organism={1}&o-tables={2}').format(self.db, self.organism,
+                                                   ','.join(self.tables))
+        if not cache or (cache and not os.path.isfile(self.cachefilename)):
+            res = requests.get(url, verify=True)
+            if(res.ok):
+                if cache:
+                    with open(cachefilename, 'wb+') as f:
+                        f.write(res.content)
+                j = res.json()
+            else:
+                res.raise_for_status()
+        else:
+            with open(self.cachefilename, 'r') as f:
+                j = json.loads(f.read())
+        for v in j['response']['recordset']['records']:
+            print(self._json_to_gene(v))
 
 
 class FlatFileIterator(object):
@@ -50,7 +124,6 @@ class FlatFileIterator(object):
             if l == '' or l is None:
                 if not self.eof:
                     self.eof = True
-                    #pprint.pprint(self.gene)
                     return self.gene
                 else:
                     raise exceptions.StopIteration
@@ -116,9 +189,12 @@ class FlatFileIterator(object):
 if _gt_available:
     class TableInStream(gt.extended.CustomStream):
 
-        def __init__(self, instream, taxon_id=None):
+        def __init__(self, in_iterator, taxon_id=None):
             gt.extended.CustomStream.__init__(self)
-            self.iterator = FlatFileIterator(instream)
+            if not it:
+                self.iterator = FlatFileIterator(instream)
+            else:
+                self.iterator = it
             self.outqueue = collections.deque()
             self.go_coll = GOCollection(taxon_id)
             self.uniprots = {}

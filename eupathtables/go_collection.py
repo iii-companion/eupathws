@@ -17,7 +17,11 @@
 
 import warnings
 import datetime
-import exceptions
+try:
+    from exceptions import RuntimeWarning
+except:
+    pass
+
 
 
 class GOCollection(object):
@@ -44,7 +48,7 @@ class GOCollection(object):
                 except:
                     warnings.warn("couldn't get aspect for %s (%s)"
                                   % (go['GO ID'], go['GO Term Name']),
-                                  exceptions.RuntimeWarning)
+                                  RuntimeWarning)
                     continue
                 if aspect and go['GO ID']:
                     self.add_generic(source, v['ID'], object_symbol, '',
