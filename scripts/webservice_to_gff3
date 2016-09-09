@@ -17,13 +17,18 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import argparse
-import eupathtables
+from eupathtables.gaf_iterator import GAFIterator
+from eupathtables.eupathtables import WebServiceIterator,TableInStream
+from eupathtables.genemetrics import GeneMetrics
+
+from gt.extended import GFF3OutStream
 import gt
 import sys
 
 parser = argparse.ArgumentParser(description='Export EuPathDB annotations to Companion '
                                              'compatible reference input.')
-parser.add_argument('database', metavar='DBNAME', type=str, help='input database')
+parser.add_argument('baseurl', metavar='DBNAME', type=str,
+                     help='baseurl for webservices (everything in front of "/webservices")')
 parser.add_argument('organism', metavar='ORG', type=str, help='organism')
 parser.add_argument('-g', '--gaf', metavar='FILE', type=str,
                     help='GAF file to write (will be overwritten without warning!)',
@@ -33,19 +38,22 @@ parser.add_argument('-i', '--ingaf', metavar='FILE', type=str,
                     dest='ingaffile')
 parser.add_argument('-t', '--taxon', metavar='TID', type=int,
                     help='taxon ID to use in GAF file', dest='taxon_id')
+parser.add_argument('-a', '--authtkt', metavar='STRING', type=str,
+                    help='authentication ticket (for locked QA sites)',
+                    dest='authtkt')
 parser.add_argument('-n', '--no-gff', action="store_true",
                     help='do not output GFF3', dest='no_gff')
+parser.add_argument('-c', '--no-cache', action="store_true",
+                    help='do not cache results', dest='no_cache')
 args = parser.parse_args()
 
-it = eupathtables.eupathtables.WebServiceIterator('alpha.plasmodb.org', 'Plasmodium falciparum 3D7', cache=True)
+gm = GeneMetrics(args.baseurl, authtkt=args.authtkt)
 
-
-sys.exit(0)
-
-
+wsit = WebServiceIterator(args.baseurl, args.organism, cache=(not args.no_cache))
+laststream = table_in_stream = TableInStream(wsit)
 
 if not args.no_gff:
-    laststream = gff_out_stream = gt.extended.GFF3OutStream(table_in_stream)
+    laststream = gff_out_stream = GFF3OutStream(table_in_stream)
 
 fn = laststream.next_tree()
 while fn:
@@ -53,6 +61,6 @@ while fn:
 
 if args.gaffile:
     if args.ingaffile:
-        it = eupathtables.GAFIterator(open(args.ingaffile))
+        it = GAFIterator(open(args.ingaffile))
         table_in_stream.go_coll.add_from_gaf_iterator(it, table_in_stream)
     table_in_stream.go_coll.to_gafv1(open(args.gaffile, "w+"))

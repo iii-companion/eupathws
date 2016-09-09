@@ -36,8 +36,8 @@ parser.add_argument('-n', '--no-gff', action="store_true",
                     help='do not output GFF3', dest='no_gff')
 args = parser.parse_args()
 
-laststream = table_in_stream = eupathtables.TableInStream(open(args.infile),
-                                                          args.taxon_id)
+flatit = FlatFileIterator(open(args.infile))
+laststream = table_in_stream = eupathtables.TableInStream(flatit, args.taxon_id)
 if not args.no_gff:
     laststream = gff_out_stream = gt.extended.GFF3OutStream(table_in_stream)
 
