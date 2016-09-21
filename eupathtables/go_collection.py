@@ -36,25 +36,32 @@ class GOCollection(object):
         return self.aspects[aspect]
 
     def add_item(self, v, source='EuPathDB'):
+        import pprint
         """Add GO terms from an item parsed from EuPathTables to the set."""
         if 'GO Terms' in v:
-            for go in v['GO Terms']:
-                aspect = None
-                object_symbol = v['ID']
-                if 'name' in v:
-                    object_symbol = v['name']
-                try:
-                    aspect = self._aspect2oneletter(go['Ontology'])
-                except:
-                    warnings.warn("couldn't get aspect for %s (%s)"
-                                  % (go['GO ID'], go['GO Term Name']),
-                                  RuntimeWarning)
-                    continue
-                if aspect and go['GO ID']:
-                    self.add_generic(source, v['ID'], object_symbol, '',
-                                     go["GO ID"], 'GO_REF:0000002',
-                                     go['Evidence Code'], '', aspect,
-                                     v['product'], '', 'gene', source)
+            for transcript_id, goterms in six.iteritems(v['GO Terms']):
+                for go in goterms:
+                    aspect = None
+                    object_symbol = transcript_id
+                    #if 'name' in v:
+                    #    object_symbol = v['name']
+                    try:
+                        aspect = self._aspect2oneletter(go['Ontology'])
+                    except:
+                        warnings.warn("couldn't get aspect for %s (%s)"
+                                      % (go['GO ID'], go['GO Term Name']),
+                                      RuntimeWarning)
+                        continue
+                    qualifier = ''
+                    if go['Is Not'] != 'N/A':
+                        qualifier = "NOT"
+                    if aspect and go['GO ID']:
+                        self.add_generic(source, object_symbol, object_symbol,
+                                         qualifier,
+                                         go["GO ID"], 'GO_REF:0000002',
+                                         go['Evidence Code'], '', aspect,
+                                         v['product'], '', 'transcript',
+                                         go["Source"])
 
     def add_from_gaf_iterator(self, it, stream=None):
         for item in it:

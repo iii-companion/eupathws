@@ -16,9 +16,13 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import collections
+import pprint
 import re
 import requests
-import os
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 import six
 import json
 try:
@@ -36,135 +40,221 @@ except exceptions.ImportError:
     warnings.warn("GenomeTools Python bindings not found, " +
                   "stream interface not available")
     _gt_available = False
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class WebServiceIterator(object):
 
-    def _process_gene_model(self, table, gene):
-        transcripts = {}
-        for r in table['rows']:
-            target_transcripts = None
-            for f in r['fields']:
-                if f['name'] == 'transcript_ids':
-                    target_transcripts = f['value'].split(', ')
+    typemap = {'Intron': 'intron'}
+    fieldmap = {'sequence_id':  'seqid',
+                'gene_type':    'type',
+                'gene_product': 'product',
+                'is_pseudo':    'pseudo'}
+
+    def _assign_UTR_flanks(self, genes):
+        logger.info('  assigning UTR directions (five_prime, three_prime)')
+        for gene_id, gene in six.iteritems(genes):
+            if not 'Gene Model' in gene:
+                continue
+            for transcript_id, genemodel in six.iteritems(gene['Gene Model']):
+                logger.info('     processing transcript %s' % transcript_id)
+                strand = None
+                genemodel.sort(key=lambda feat: feat['Start'])
+                for feature in genemodel:
+                    if not strand:
+                        strand = feature['Strand']
+                    else:
+                        if strand != feature['Strand']:
+                            raise RuntimeError("inconsistent strands within " +
+                                               "transcript %s" % transcript_id)
+                seen_coding = False
+                for feature in genemodel:
+                    if feature['Type'] == 'UTR':
+                        if seen_coding:
+                            if strand == '+':
+                                feature['Type'] = 'three_prime_UTR'
+                            else:
+                                feature['Type'] = 'five_prime_UTR'
+                        else:
+                            if strand == '+':
+                                feature['Type'] = 'five_prime_UTR'
+                            else:
+                                feature['Type'] = 'three_prime_UTR'
+                    elif feature['Type'] == 'CDS':
+                        seen_coding = True
+
+    def _process_gene_model(self, table, genes):
+        #[Gene ID]       [Transcript ID(s)]      [Name]  [Type]  [Sequence_id]   [Start] [End]   [Is Reversed]
+        for entry in table:
+            entry['Gene ID'] = entry['Gene ID'].split(', ')[0]
+            if not genes[entry['Gene ID']]:
+                raise RuntimeError("orphan gene model with ID '%s' doesn't " +
+                                   "have info in ByTaxon result" % entry['Gene ID'])
+            target_gene = genes[entry['Gene ID']]
+            target_transcripts = entry['Transcript ID(s)'].split(', ')
             assert(target_transcripts is not None)
-            subfeat = {}
-            for f in r['fields']:
-                if f['name'] == 'type':
-                    subfeat['Type'] = f['value'].lower()
-                if f['name'] == 'sequence_id':
-                    subfeat['Seqid'] = f['value']
-                if f['name'] == 'gm_start':
-                    subfeat['Start'] = int(f['value'])
-                if f['name'] == 'gm_end':
-                    subfeat['End'] = int(f['value'])
-                if f['name'] == 'is_reversed':
-                    subfeat['Strand'] = "+-"[int(f['value'])]
+            if entry['Type'] in self.typemap:
+                entry['Type'] = self.typemap[entry['Type']]
+            entry['Seqid'] = entry['Sequence_id']
+            entry['Start'] = int(entry['Start'])
+            entry['End'] = int(entry['End'])
+            entry['Strand'] = "+-"[int(entry['Is Reversed'])]
             for tt in target_transcripts:
-                if not tt in transcripts:
-                    transcripts[tt] = []
-                transcripts[tt].append(subfeat)
-        return transcripts
+                if not 'Gene Model' in target_gene:
+                    target_gene['Gene Model'] = {}
+                if not tt in target_gene['Gene Model']:
+                    target_gene['Gene Model'][tt] = []
+                target_gene['Gene Model'][tt].append(entry)
+        self._assign_UTR_flanks(genes)
 
-    def _process_pubmed(self, table, gene):
-        pubmed_ids = []
-        for r in table['rows']:
-            for f in r['fields']:
-                if f['name'] == 'pubmed_id':
-                    pubmed_ids.append(f['value'])
-        return pubmed_ids
+    def _process_pubmed(self, table, genes):
+        # [Gene ID]         [PubMed ID]     [doi]   [Title] [Authors]
+        for entry in table:
+            entry['Gene ID'] = entry['Gene ID'].split(', ')[0]
+            if not genes[entry['Gene ID']]:
+                raise RuntimeError("orphan gene model with ID '%s' doesn't " +
+                                   "have info in ByTaxon result" % entry['Gene ID'])
+            target_gene = genes[entry['Gene ID']]
+            if not 'Dbxref' in target_gene:
+                    target_gene['Dbxref'] = []
+            target_gene['Dbxref'].append("PMID:%s" % str(entry['PubMed ID']))
 
-    def _process_go(self, table, gene):
-        goterms = []
-        for r in table['rows']:
-            target_transcripts = None
-            for f in r['fields']:
-                if f['name'] == 'transcript_ids':
-                    target_transcripts = f['value'].split(', ')
+    def _process_go(self, table, genes):
+        # [Gene ID]         [Transcript ID(s)]      [Ontology]
+        # [GO ID] [GO Term Name]  [Source]        [Evidence Code] [Is Not]
+        # [Reference] [Evidence Code Support]
+        for entry in table:
+            entry['Gene ID'] = entry['Gene ID'].split(', ')[0]
+            if not genes[entry['Gene ID']]:
+                raise RuntimeError("orphan gene model with ID '%s' doesn't " +
+                                   "have info in ByTaxon result" % entry['Gene ID'])
+            target_gene = genes[entry['Gene ID']]
+            target_transcripts = entry['Transcript ID(s)'].split(', ')
             assert(target_transcripts is not None)
-            goterm = {}
-            # [GO ID] [Ontology]      [GO Term Name]  [Source]        [Evidence Code] [Is Not]
-            for f in r['fields']:
-                if f['name'] == 'ontology':
-                    goterm['Ontology'] = f['value']
-                if f['name'] == 'go_id':
-                    goterm['GO ID'] = f['value']
-                if f['name'] == 'go_term_name':
-                    goterm['GO Term Name'] = f['value']
-                if f['name'] == 'source':
-                    goterm['Source'] = f['value']
-                if f['name'] == 'evidence_code':
-                    goterm['Evidence Code'] = f['value']
-                if f['name'] == 'is_not':
-                    goterm['Is Not'] = f['value']
             for tt in target_transcripts:
-                if not tt in goterms:
-                    goterms[tt] = []
-                goterms[tt].append(goterm)
-        return goterms
+                if not 'GO Terms' in target_gene:
+                    target_gene['GO Terms'] = {}
+                if not tt in target_gene['GO Terms']:
+                    target_gene['GO Terms'][tt] = []
+                target_gene['GO Terms'][tt].append(entry)
 
-    def _json_to_gene(self, item):
-        gene = {}
-        gene['ID'] = item['id']
-
-        for t in item['tables']:
-            if t['name'] == 'Gene Model':
-                gene['Gene Model'] = self._process_gene_model(t, gene)
-            if t['name'] == 'PubMed':
-                gene['PubMed'] = self._process_pubmed(t, gene)
-            if t['name'] == 'GOTerms':
-                gene['GO Terms'] = self._process_go(t, gene)
-
-        return gene
-
-    def _add_single_info(self, genes, item):
-        fieldmap = {'sequence_id'  : 'seqid',
-                    'gene_type'    : 'type',
-                    'gene_product' : 'product',
-                    'is_pseudo'    : 'pseudo'}
-        if item['id'] not in genes:
-            raise "gene not found with ID %s" % (item['id'])
-        v = genes[item['id']]
+    def _create_gene(self, genes, item):
+        logger.info('  creating gene %s' % item['id'])
+        v = {}
+        genes[item['id']] = v
+        v['ID'] = item['id']
         for f in item['fields']:
-            if f['name'] in fieldmap:
-                v[fieldmap[f['name']]] = f['value']
+            if f['name'] in self.fieldmap:
+                v[self.fieldmap[f['name']]] = f['value']
             elif f['name'] == 'gene_location_text':
                 m = re.search('^([^:]+):([0-9,]+)\.\.([0-9,]+)\((.)\)', f['value'])
                 if m:
-                    v['start'] = int(m.group(2).replace(',',''))
-                    v['stop'] = int(m.group(3).replace(',',''))
+                    v['start'] = int(m.group(2).replace(',', ''))
+                    v['stop'] = int(m.group(3).replace(',', ''))
                     v['strand'] = m.group(4)
             else:
                 v[f['name']] = f['value']
 
-    def _get_cached_json(self, cache, url):
-        j = None
-        # get hostname part of base URL
-        db = urllib.parse.urlparse(url).netloc
-        if "ByTaxonGene.json" in url:
-            cachefilename = db + "_" + self.organism.replace(" ", "_") + ".json"
-        elif "ByTaxon.json" in url:
-            cachefilename = db + "_" + self.organism.replace(" ", "_") + "_2.json"
-        else:
-            import md5
-            cachefilename = db + "_" + self.organism.replace(" ", "_") + ("_%s.txt" % (md5.new(url).digest()))
-        if not cache or (cache and not os.path.isfile(cachefilename)):
-            res = requests.get(url, verify=True)
-            if(res.ok):
-                if cache:
-                    with open(cachefilename, 'wb+') as f:
-                        f.write(res.content)
-                j = res.json()
-            else:
-                res.raise_for_status()
-        else:
-            with open(cachefilename, 'r') as f:
-                j = json.loads(f.read())
-        return j
+    def _get_session(self, login=None):
+        logger.info('  creating session')
+        s = requests.session()
+        if login:
+            logger.info('  logging in')
+            s.get(self.baseurl)
+            login_payload = {
+                 'username': login.username,
+                 'password': login.password,
+                 "submit": "Login"
+            }
+            lreq = s.post("https://eupathdb.org/auth/bin/login", data=login_payload)
+            f = s.get(self.baseurl)
+        return s
 
-    def __init__(self, baseurl, organism, cache=False):
+    def _get_json(self, url, params=None):
+        logger.info('  retrieving %s' % url)
+        s = self._get_session(self.login)
+        res = s.get(url, verify=True, params=params)
+        if "autologin" in res.text or 'Login</title>' in res.text:
+            raise RuntimeError("Login failed -- please check user credentials.")
+        if(res.ok):
+            return res.json()
+        else:
+            res.raise_for_status()
+
+    def _parse_table(self, tablestring, tablename):
+        logger.info('  parsing table %s' % tablename)
+        s = StringIO(tablestring)
+        i = 0
+        headers = None
+        out = []
+        for line in s:
+            if i == 0:
+                headers = re.findall('\[([^[]+)\]', line)
+                i = i + 1
+            else:
+                res = {}
+                if not headers:
+                    raise RuntimeError("table headers not found trying to " +
+                                       "query table '%s'" % tablename)
+                vals = line.split("\t")
+                if len(vals) < len(headers):
+                    raise RuntimeError("invalid number of columns (%s) " +
+                                       "reading line '%s' in table '%s' " +
+                                       "(expected %s)" % (str(len(vals)),
+                                                          line, tablename,
+                                                          str(len(headers))))
+                j = 0
+                for val in vals:
+                    if j < len(headers):
+                        res[headers[j]] = val
+                    j = j + 1
+                out.append(res)
+        return out
+
+    def _get_table(self, table):
+        s = self._get_session(self.login)
+
+        query_payload = {
+            "questionDefinition": {
+                "questionName": "GeneQuestions.GenesByTaxonGene",
+                "parameters": {"organism": self.organism},
+                "viewFilters": [],
+                "filters": []
+            },
+            "formatting": {
+                "formatConfig": {
+                    "tables": [table],
+                    "includeHeader": True,
+                    "attachmentType": "plain"
+                },
+                "format": "tableTabular"
+            }
+        }
+
+        r = s.post(self.baseurl + "/service/answer",
+                   data=json.dumps(query_payload),
+                   headers={'Content-Type': 'application/json'})
+        r.raise_for_status()
+        return self._parse_table(r.text, table)
+
+    def _parse_login(self, login):
+        if not login:
+            return None
+        vals = str(login).split(':')
+        if len(vals) != 2:
+            raise RuntimeError("login string '%s' does not have " +
+                               "expected format user:password" % login)
+        else:
+            from collections import namedtuple
+            Login = namedtuple("Login", "username password")
+            return Login(vals[0], vals[1])
+
+    def __init__(self, baseurl, organism, cache=False, login=None):
         self.baseurl = baseurl
         self.organism = organism
+        self.login = self._parse_login(login)
         self.fields = ['annotated_go_function',
                        'gene_uniprot_id',
                        'gene_location_text',
@@ -176,34 +266,34 @@ class WebServiceIterator(object):
                        'chromosome',
                        'gene_type',
                        'is_pseudo',
-                       'source_id',
                        'sequence_id']
         self.tables = ['GeneModelDump',
                        'Notes',
                        'PubMed',
                        'GOTerms']
-        url = ('{0}/webservices/GeneQuestions/GenesByTaxonGene.json?' +
-               'organism={1}&o-tables={2}').format(self.baseurl, self.organism,
-                                                   ','.join(self.tables))
-        genes = {}
-
-        # get gene models and transcripts
-        taxongene_json = self._get_cached_json(cache, url)
-        for v in taxongene_json['response']['recordset']['records']:
-            gene = self._json_to_gene(v)
-            if not gene['ID'] in genes:
-                genes[gene['ID']] = gene
-            else:
-                raise 'duplicate gene ID: %s' % (gene['ID'])
 
         # get gene centric information
-        url = ('{0}/webservices/GeneQuestions/GenesByTaxon.json?' +
-               'organism={1}&o-fields={2}').format(self.baseurl, self.organism,
-                                                   ','.join(self.fields))
-        taxon_json = self._get_cached_json(cache, url)
+        params = {'organism': self.organism,
+                  'o-fields': ','.join(self.fields)}
+
+        genes = {}
+
+        # get gene level data from JSON webservice
+        url = '{0}/webservices/GeneQuestions/GenesByTaxon.json'.format(baseurl)
+        taxon_json = self._get_json(url, params)
         for v in taxon_json['response']['recordset']['records']:
-            self._add_single_info(genes, v)
+            self._create_gene(genes, v)
+
+        # do fast table queries via new web service
+        tbl = self._get_table('GeneModelDump')
+        self._process_gene_model(tbl, genes)
+        tbl = self._get_table('PubMed')
+        self._process_pubmed(tbl, genes)
+        tbl = self._get_table('GOTerms')
+        self._process_go(tbl, genes)
+
         self.genes = collections.deque(list(genes.values()))
+
 
     def next(self):
         return self.__next__()
@@ -375,6 +465,7 @@ if _gt_available:
                     gene = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "gene"),
                                                               int(v['start']),
                                                               int(v['stop']), v['strand'])
+                    gene.set_source("EuPathDB")
                     gene.add_attribute("ID", v['ID'])
                     if 'name' in v:
                         gene.add_attribute("Name", v['name'])

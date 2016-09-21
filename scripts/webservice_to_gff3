@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 #  Author: Sascha Steinbiss <ss34@sanger.ac.uk>
-#  Copyright (c) 2015-2016 Genome Research Ltd
+#  Copyright (c) 2016 Genome Research Ltd
 #
 #  Permission to use, copy, modify, and distribute this software for any
 #  purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +16,11 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 import argparse
+import logging
 from eupathtables.gaf_iterator import GAFIterator
 from eupathtables.eupathtables import WebServiceIterator,TableInStream
 from eupathtables.genemetrics import GeneMetrics
@@ -38,22 +42,26 @@ parser.add_argument('-i', '--ingaf', metavar='FILE', type=str,
                     dest='ingaffile')
 parser.add_argument('-t', '--taxon', metavar='TID', type=int,
                     help='taxon ID to use in GAF file', dest='taxon_id')
-parser.add_argument('-a', '--authtkt', metavar='STRING', type=str,
-                    help='authentication ticket (for locked QA sites)',
-                    dest='authtkt')
+parser.add_argument('-l', '--login', metavar='STRING', type=str,
+                    help='login credentials (for locked QA sites) format user:pass',
+                    dest='login')
 parser.add_argument('-n', '--no-gff', action="store_true",
                     help='do not output GFF3', dest='no_gff')
 parser.add_argument('-c', '--no-cache', action="store_true",
                     help='do not cache results', dest='no_cache')
+parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                    action="store_true")
 args = parser.parse_args()
 
-gm = GeneMetrics(args.baseurl, authtkt=args.authtkt)
-
-wsit = WebServiceIterator(args.baseurl, args.organism, cache=(not args.no_cache))
+wsit = WebServiceIterator(args.baseurl, args.organism,
+                          cache=(not args.no_cache), login=args.login)
 laststream = table_in_stream = TableInStream(wsit)
 
 if not args.no_gff:
     laststream = gff_out_stream = GFF3OutStream(table_in_stream)
+
+if args.verbose:
+    logging.basicConfig(level=logging.DEBUG)
 
 fn = laststream.next_tree()
 while fn:
