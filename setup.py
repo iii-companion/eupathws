@@ -9,7 +9,7 @@ except ImportError:
 setup(
     name='eupathtables',
     version='0.1',
-    description='Python interface for reading and converting EuPathDB flat file dumps',
+    description='Python interface for exporting EuPathDB data from web services',
     packages = find_packages(),
     author='Sascha Steinbiss',
     author_email='ss34@sanger.ac.uk',
