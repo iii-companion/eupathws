@@ -17,12 +17,14 @@
 
 import collections
 import requests
+from eupathtables.login import parse_login, get_session
 
 
 class GeneMetrics(object):
 
-    def __init__(self, baseurl, authtkt=None):
+    def __init__(self, baseurl, login=None):
         self.baseurl = baseurl
+        self.login = parse_login(login)
         self.fields = ["organism",
                        "ncbi_tax_id",
                        "is_reference_strain",
@@ -30,11 +32,8 @@ class GeneMetrics(object):
                        "URLGenomeFasta",
                        "URLgff"]
         url = ('{0}/webservices/OrganismQuestions/GeneMetrics.json?o-fields={1}').format(self.baseurl, ','.join(self.fields))
-        if authtkt:
-            url = url + ("&auth_tkt=%s" % (str(authtkt)))
-        print(url)
-        res = requests.get(url, verify=True)
-        print(res.text)
+        s = get_session(self.baseurl, self.login)
+        res = s.get(url, verify=True)
         self.orgs = collections.deque()
         if(res.ok):
             j = res.json()

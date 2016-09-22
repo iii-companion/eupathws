@@ -16,26 +16,21 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import collections
-import pprint
 import re
-import requests
+from eupathtables.login import get_session, parse_login
 try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
 import six
 import json
-try:
-    import exceptions
-except:
-    pass
 import urllib
 import sys
 from eupathtables.go_collection import GOCollection
 try:
     import gt
     _gt_available = True
-except exceptions.ImportError:
+except ImportError:
     import warnings
     warnings.warn("GenomeTools Python bindings not found, " +
                   "stream interface not available")
@@ -157,24 +152,9 @@ class WebServiceIterator(object):
             else:
                 v[f['name']] = f['value']
 
-    def _get_session(self, login=None):
-        logger.info('  creating session')
-        s = requests.session()
-        if login:
-            logger.info('  logging in')
-            s.get(self.baseurl)
-            login_payload = {
-                 'username': login.username,
-                 'password': login.password,
-                 "submit": "Login"
-            }
-            lreq = s.post("https://eupathdb.org/auth/bin/login", data=login_payload)
-            f = s.get(self.baseurl)
-        return s
-
     def _get_json(self, url, params=None):
         logger.info('  retrieving %s' % url)
-        s = self._get_session(self.login)
+        s = get_session(self.baseurl, self.login)
         res = s.get(url, verify=True, params=params)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
@@ -214,7 +194,7 @@ class WebServiceIterator(object):
         return out
 
     def _get_table(self, table):
-        s = self._get_session(self.login)
+        s = get_session(self.baseurl, self.login)
 
         query_payload = {
             "questionDefinition": {
@@ -239,22 +219,10 @@ class WebServiceIterator(object):
         r.raise_for_status()
         return self._parse_table(r.text, table)
 
-    def _parse_login(self, login):
-        if not login:
-            return None
-        vals = str(login).split(':')
-        if len(vals) != 2:
-            raise RuntimeError("login string '%s' does not have " +
-                               "expected format user:password" % login)
-        else:
-            from collections import namedtuple
-            Login = namedtuple("Login", "username password")
-            return Login(vals[0], vals[1])
-
     def __init__(self, baseurl, organism, cache=False, login=None):
         self.baseurl = baseurl
         self.organism = organism
-        self.login = self._parse_login(login)
+        self.login = parse_login(login)
         self.fields = ['annotated_go_function',
                        'gene_uniprot_id',
                        'gene_location_text',
@@ -318,7 +286,8 @@ if _gt_available:
                              'mRNA': 'pseudogenic_transcript',
                              'rRNA': 'pseudogenic_transcript',
                              'tRNA': 'pseudogenic_transcript',
-                             'exon': 'pseudogenic_exon'}
+                             'Exon': 'pseudogenic_exon',
+                             'CDS': 'pseudogenic_exon'}
 
         def get_transcript_length(self, model):
             transcript_length = 0
@@ -465,7 +434,6 @@ if _gt_available:
                     gene = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "gene"),
                                                               int(v['start']),
                                                               int(v['stop']), v['strand'])
-                    gene.set_source("EuPathDB")
                     gene.add_attribute("ID", v['ID'])
                     if 'name' in v:
                         gene.add_attribute("Name", v['name'])

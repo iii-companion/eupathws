@@ -25,6 +25,7 @@ except:
 
 
 class GOCollection(object):
+
     def __init__(self, taxon_id):
         self.gos = {}
         self.taxon_id = taxon_id
@@ -36,15 +37,12 @@ class GOCollection(object):
         return self.aspects[aspect]
 
     def add_item(self, v, source='EuPathDB'):
-        import pprint
         """Add GO terms from an item parsed from EuPathTables to the set."""
         if 'GO Terms' in v:
             for transcript_id, goterms in six.iteritems(v['GO Terms']):
                 for go in goterms:
                     aspect = None
                     object_symbol = transcript_id
-                    #if 'name' in v:
-                    #    object_symbol = v['name']
                     try:
                         aspect = self._aspect2oneletter(go['Ontology'])
                     except:

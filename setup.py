@@ -7,15 +7,13 @@ except ImportError:
     pass
 
 setup(
-    name='eupathtables',
+    name='eupathws',
     version='0.1',
     description='Python interface for exporting EuPathDB data from web services',
     packages = find_packages(),
     author='Sascha Steinbiss',
     author_email='ss34@sanger.ac.uk',
-    url='https://github.com/satta/eupathtables',
-    test_suite='nose.collector',
-    tests_require=['nose >= 1.3'],
+    url='https://github.com/satta/eupathws',
     scripts=glob.glob('scripts/*'),
     license='ISC',
     classifiers=[
