@@ -16,37 +16,36 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+import argparse
+import logging
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import argparse
-from eupathtables.fileset import create_fileset_for_organism
+from eupathtables.fileset import create_fileset_for_organism, has_all_files
 from eupathtables.genemetrics import GeneMetrics
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='Export EuPathDB annotations to Companion '
                                              'compatible reference input.')
 parser.add_argument('baseurl', metavar='DBNAME', type=str,
                     help='baseurl for webservices (everything in front of "/webservices")')
-parser.add_argument('-g', '--gaf', metavar='FILE', type=str,
-                    help='GAF file to write (will be overwritten without warning!)',
-                    dest='gaffile')
-parser.add_argument('-i', '--ingaf', metavar='FILE', type=str,
-                    help='input GAF file to include in resulting GAF',
-                    dest='ingaffile')
-parser.add_argument('-t', '--taxon', metavar='TID', type=int,
-                    help='taxon ID to use in GAF file', dest='taxon_id')
 parser.add_argument('-l', '--login', metavar='STRING', type=str,
                     help='login credentials (for locked QA sites) format user:pass',
                     dest='login')
-parser.add_argument('-n', '--no-gff', action="store_true",
-                    help='do not output GFF3', dest='no_gff')
-parser.add_argument('-c', '--no-cache', action="store_true",
-                    help='do not cache results', dest='no_cache')
-parser.add_argument("-v", "--verbose", help="increase output verbosity",
-                    action="store_true")
+parser.add_argument('-a', '--all', action="store_true",
+                    help='print all organisms (not just reference strains)',
+                    dest='all')
+parser.add_argument('-f', '--force', action="store_true",
+                    help='force re-download of all organisms',
+                    dest='force')
 args = parser.parse_args()
 
 gm = GeneMetrics(args.baseurl, login=args.login)
 for g in gm:
     if (g['is_reference_strain'] == '1' or args.all) and g['is_annotated_genome'] == '1':
-        create_fileset_for_organism(args.baseurl, g['organism'], args.login)
+        if (not has_all_files(g['organism'])) or args.force:
+            create_fileset_for_organism(args.baseurl, g['organism'], args.login)
+        else:
+            logger.info("skipping organism %s, files already present" % g['organism'])
+

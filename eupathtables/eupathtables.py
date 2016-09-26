@@ -155,7 +155,10 @@ class WebServiceIterator(object):
     def _get_json(self, url, params=None):
         logger.info('  retrieving %s' % url)
         s = get_session(self.baseurl, self.login)
-        res = s.get(url, verify=True, params=params)
+        # workaround for problematic urlencoding if organism contains '#'
+        params = "?organism=" + params['organism'] + \
+                 "&o-fields=" + params['o-fields']
+        res = s.get(url + params, verify=True)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
         if(res.ok):
@@ -241,7 +244,7 @@ class WebServiceIterator(object):
                        'GOTerms']
 
         # get gene centric information
-        params = {'organism': self.organism,
+        params = {'organism': self.organism.replace('#',"%23"),
                   'o-fields': ','.join(self.fields)}
 
         genes = {}

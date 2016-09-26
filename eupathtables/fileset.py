@@ -66,6 +66,13 @@ def stdout_redirector(stream):
         os.close(saved_stdout_fd)
 
 
+def has_all_files(organism):
+    for sfx in ['.fasta', '.gaf', '.gff3']:
+        if not os.path.isfile("%s%s" % (organism, sfx)):
+            return False
+    return True
+
+
 def download_file(url, local_filename=None):
     if not local_filename:
         local_filename = url.split('/')[-1]

@@ -38,7 +38,9 @@ class SequenceProvider(object):
     def __init__(self, baseurl, organism, login=None):
         self.login = parse_login(login)
         self.baseurl = baseurl
-        url = '{0}/webservices/GenomicSequenceQuestions/SequencesByTaxon.json?organism={1}&o-fields=primary_key'.format(baseurl, organism)
+        url = ('{0}/webservices/GenomicSequenceQuestions/' +
+               'SequencesByTaxon.json' +
+               '?organism={1}&o-fields=primary_key').format(baseurl, organism.replace('#', "%23"))
         res = self._get_json(url)
         seqids = []
         for v in res['response']['recordset']['records']:
