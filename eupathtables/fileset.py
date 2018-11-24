@@ -20,8 +20,8 @@ import sys
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-from eupathtables.eupathtables import WebServiceIterator, TableInStream
-from eupathtables.sequenceaccess import SequenceProvider
+from eupathtables import WebServiceIterator, TableInStream
+from sequenceaccess import SequenceProvider
 from gt.extended import GFF3OutStream
 from contextlib import contextmanager
 import ctypes

@@ -17,7 +17,7 @@
 
 import collections
 import re
-from eupathtables.login import get_session, parse_login
+from login import get_session, parse_login
 try:
     from StringIO import StringIO
 except ImportError:
@@ -26,7 +26,7 @@ import six
 import json
 import urllib
 import sys
-from eupathtables.go_collection import GOCollection
+from go_collection import GOCollection
 try:
     import gt
     _gt_available = True
@@ -227,7 +227,6 @@ class WebServiceIterator(object):
         self.organism = organism
         self.login = parse_login(login)
         self.fields = ['annotated_go_function',
-                       'gene_uniprot_id',
                        'gene_location_text',
                        'location_text',
                        'gene_type',

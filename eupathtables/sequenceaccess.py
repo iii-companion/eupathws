@@ -15,8 +15,8 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-from eupathtables.login import parse_login, get_session
-from urllib.parse import urlparse
+from login import parse_login, get_session
+from urlparse import urlparse
 import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
