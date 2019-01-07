@@ -463,7 +463,6 @@ if _gt_available:
                     # protein coding gene
                     if v['type'] == 'protein coding':
                         self.make_coding(v, gene)
-            #        exit()                   
                     break
 
                 #except:
