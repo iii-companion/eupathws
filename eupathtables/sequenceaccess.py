@@ -15,9 +15,10 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-from login import parse_login, get_session
-from urlparse import urlparse
+from eupathtables.login import parse_login, get_session
+from urllib.parse import urlparse
 import logging
+import re
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -48,8 +49,9 @@ class SequenceProvider(object):
         logger.info('  needing to retrieve %s seqs for organism %s' % (len(seqids), organism))
         parsed_url = urlparse(baseurl)
         self.baseurl = "%s://%s" % (parsed_url.scheme, parsed_url.netloc)
-        # XXX: hard coded FungiDB, please make configurable!
-        payload = {'project_id': 'FungiDB',
+        project_id = parsed_url.netloc.split('.')[0].capitalize()
+        project_id = re.sub('db$', 'DB', project_id)
+        payload = {'project_id': project_id,
                    'ids': '\n'.join(seqids)}
         url = ('{0}/cgi-bin/contigSrt').format(self.baseurl)
         s = get_session(self.baseurl, self.login)

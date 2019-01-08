@@ -17,7 +17,7 @@
 
 import collections
 import re
-from login import get_session, parse_login
+from eupathtables.login import get_session, parse_login
 try:
     from StringIO import StringIO
 except ImportError:
@@ -26,7 +26,7 @@ import six
 import json
 import urllib
 import sys
-from go_collection import GOCollection
+from eupathtables.go_collection import GOCollection
 try:
     import gt
     _gt_available = True
@@ -84,24 +84,26 @@ class WebServiceIterator(object):
         #[Gene ID]       [Transcript ID(s)]      [Name]  [Type]  [Sequence_id]   [Start] [End]   [Is Reversed]
         for entry in table:
             entry['Gene ID'] = entry['Gene ID'].split(', ')[0]
-            if not genes[entry['Gene ID']]:
-                raise RuntimeError("orphan gene model with ID '%s' doesn't " +
+            transcripts = entry['Transcript ID(s)'].split(', ')
+            for transcript in entry['Transcript ID(s)'].split(', '):
+                if not genes[entry['Gene ID']]:
+                    raise RuntimeError("orphan gene model with ID '%s' doesn't " +
                                    "have info in ByTaxon result" % entry['Gene ID'])
-            target_gene = genes[entry['Gene ID']]
-            target_transcripts = entry['Transcript ID(s)'].split(', ')
-            assert(target_transcripts is not None)
-            if entry['Type'] in self.typemap:
-                entry['Type'] = self.typemap[entry['Type']]
-            entry['Seqid'] = entry['Sequence_id']
-            entry['Start'] = int(entry['Start'])
-            entry['End'] = int(entry['End'])
-            entry['Strand'] = "+-"[int(entry['Is Reversed'])]
-            for tt in target_transcripts:
-                if not 'Gene Model' in target_gene:
-                    target_gene['Gene Model'] = {}
-                if not tt in target_gene['Gene Model']:
-                    target_gene['Gene Model'][tt] = []
-                target_gene['Gene Model'][tt].append(entry)
+                target_gene = genes[entry['Gene ID']]
+                target_transcripts = [transcript]
+                assert(target_transcripts is not None)
+                if entry['Type'] in self.typemap:
+                    entry['Type'] = self.typemap[entry['Type']]
+                entry['Seqid'] = entry['Sequence_id']
+                entry['Start'] = int(entry['Start'])
+                entry['End'] = int(entry['End'])
+                entry['Strand'] = "+-"[int(entry['Is Reversed'])]
+                for tt in target_transcripts:
+                    if not 'Gene Model' in target_gene:
+                        target_gene['Gene Model'] = {}
+                    if not tt in target_gene['Gene Model']:
+                        target_gene['Gene Model'][tt] = []
+                    target_gene['Gene Model'][tt].append(entry)
         self._assign_UTR_flanks(genes)
 
     def _process_pubmed(self, table, genes):
@@ -122,24 +124,27 @@ class WebServiceIterator(object):
         # [Reference] [Evidence Code Support]
         for entry in table:
             entry['Gene ID'] = entry['Gene ID'].split(', ')[0]
-            if not genes[entry['Gene ID']]:
-                raise RuntimeError("orphan gene model with ID '%s' doesn't " +
-                                   "have info in ByTaxon result" % entry['Gene ID'])
-            target_gene = genes[entry['Gene ID']]
-            target_transcripts = entry['Transcript ID(s)'].split(', ')
-            assert(target_transcripts is not None)
-            for tt in target_transcripts:
-                if not 'GO Terms' in target_gene:
-                    target_gene['GO Terms'] = {}
-                if not tt in target_gene['GO Terms']:
-                    target_gene['GO Terms'][tt] = []
-                target_gene['GO Terms'][tt].append(entry)
+            for transcript in entry['Transcript ID(s)'].split(', '):
+                if not genes[entry['Gene ID']]:
+                    raise RuntimeError("orphan gene model with ID '%s' doesn't " +
+                                       "have info in ByTaxon result"%(entry['Gene ID']))
+                target_gene = genes[entry['Gene ID']]
+                target_transcripts = [transcript]
+                assert(target_transcripts is not None)
+                for tt in target_transcripts:
+                    if not 'GO Terms' in target_gene:
+                        target_gene['GO Terms'] = {}
+                    if not tt in target_gene['GO Terms']:
+                        target_gene['GO Terms'][tt] = []
+                    target_gene['GO Terms'][tt].append(entry)
 
     def _create_gene(self, genes, item):
-        logger.info('  creating gene %s' % item['id'])
         v = {}
-        genes[item['id']] = v
-        v['ID'] = item['id']
+        geneId = item['id'].rsplit('/', 1)[0]
+        geneId = item['id'].rsplit('/')[0]
+        logger.info('   creating gene %s' % geneId)
+        genes[geneId] = v
+        v['ID'] = geneId
         for f in item['fields']:
             if f['name'] in self.fieldmap:
                 v[self.fieldmap[f['name']]] = f['value']
@@ -197,10 +202,11 @@ class WebServiceIterator(object):
         return out
 
     def _get_table(self, table):
+        logger.info(self.organism)
         s = get_session(self.baseurl, self.login)
 
         query_payload = {
-            "questionDefinition": {
+            "answerSpec": {
                 "questionName": "GeneQuestions.GenesByTaxonGene",
                 "parameters": {"organism": self.organism},
                 "viewFilters": [],
@@ -216,7 +222,7 @@ class WebServiceIterator(object):
             }
         }
 
-        r = s.post(self.baseurl + "/service/answer",
+        r = s.post(self.baseurl + "/service/answer/report",
                    data=json.dumps(query_payload),
                    headers={'Content-Type': 'application/json'})
         r.raise_for_status()
@@ -236,6 +242,8 @@ class WebServiceIterator(object):
                        'chromosome',
                        'gene_type',
                        'is_pseudo',
+                       'gene_name',
+                       'uniprot_id',
                        'sequence_id']
         self.tables = ['GeneModelDump',
                        'Notes',
@@ -437,12 +445,13 @@ if _gt_available:
                                                               int(v['start']),
                                                               int(v['stop']), v['strand'])
                     gene.add_attribute("ID", v['ID'])
-                    if 'name' in v:
-                        gene.add_attribute("Name", v['name'])
+                    if 'gene_name' in v and v['gene_name'] is not None:
+                        gene.add_attribute("Name", v['gene_name'])
 
                     # track UniProtID -> gene mappings
-                    if 'gene_uniprot_id' in v:
-                        for u in v['gene_uniprot_id'].split(','):
+                    if 'uniprot_id' in v and v['uniprot_id'] is not None:
+                        logger.info(v)
+                        for u in v['uniprot_id'].split(','):
                             if len(u) > 0:
                                 self.uniprots[u] = v['ID']
 
@@ -454,7 +463,6 @@ if _gt_available:
                     # protein coding gene
                     if v['type'] == 'protein coding':
                         self.make_coding(v, gene)
-
                     break
 
                 #except:

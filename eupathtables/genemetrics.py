@@ -17,7 +17,7 @@
 
 import collections
 import requests
-from login import parse_login, get_session
+from eupathtables.login import parse_login, get_session
 
 
 class GeneMetrics(object):
