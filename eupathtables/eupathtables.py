@@ -179,7 +179,7 @@ class WebServiceIterator(object):
         out = []
         for line in s:
             if i == 0:
-                headers = re.findall('\[([^[]+)\]', line)
+                headers = line.split('\t')
                 i = i + 1
             else:
                 res = {}
@@ -222,7 +222,7 @@ class WebServiceIterator(object):
             }
         }
 
-        r = s.post(self.baseurl + "/service/answer/report",
+        r = s.post(self.baseurl + "/a/service/answer/report",
                    data=json.dumps(query_payload),
                    headers={'Content-Type': 'application/json'})
         r.raise_for_status()
@@ -450,7 +450,6 @@ if _gt_available:
 
                     # track UniProtID -> gene mappings
                     if 'uniprot_id' in v and v['uniprot_id'] is not None:
-                        logger.info(v)
                         for u in v['uniprot_id'].split(','):
                             if len(u) > 0:
                                 self.uniprots[u] = v['ID']
