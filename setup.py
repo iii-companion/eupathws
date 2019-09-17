@@ -12,7 +12,7 @@ setup(
     description='Python interface for exporting EuPathDB data from web services',
     packages = find_packages(),
     author='Sascha Steinbiss',
-    author_email='ss34@sanger.ac.uk',
+    author_email='sascha@steinbiss.name',
     url='https://github.com/satta/eupathws',
     scripts=glob.glob('scripts/*'),
     license='ISC',
