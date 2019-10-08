@@ -99,12 +99,12 @@ def create_fileset_for_organism(baseurl, organism, login):
             fn = laststream.next_tree()
 
     # write out GFF for organism
-    with open('%s.gff3' % organism, 'w') as fd:
+    with open('%s.gff3' % organism.replace('/', '_'), 'w') as fd:
         fd.write("{0}".format(f.getvalue().decode('utf-8')))
 
     # download FASTA for organism
     sp = SequenceProvider(baseurl, organism, login=login)
-    sp.to_file("%s.fasta" % organism)
+    sp.to_file("%s.fasta" % organism.replace('/', '_'))
 
     # write out GAF for organism
-    table_in_stream.go_coll.to_gafv1(open('%s.gaf' % organism, "w+"))
+    table_in_stream.go_coll.to_gafv1(open('%s.gaf' % organism.replace('/', '_'), "w+"))
