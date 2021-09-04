@@ -58,3 +58,6 @@ target/
 
 # Mac OS X metadata
 ._*
+
+# Virtual environment
+venv/

@@ -17,6 +17,7 @@
 
 from eupathtables.login import parse_login, get_session
 from urllib.parse import urlparse
+import json
 import logging
 import re
 logger = logging.getLogger(__name__)
@@ -25,10 +26,25 @@ logging.basicConfig(level=logging.INFO)
 
 class SequenceProvider(object):
 
-    def _get_json(self, url, params=None):
+    def _get_json(self):
+        url = self.url + '/standard'
         logger.info('  retrieving %s' % url)
         s = get_session(self.baseurl, self.login)
-        res = s.get(url, verify=True, params=params)
+
+        params = {
+            "organism": self.organism.replace("#","%23"),
+            "reportConfig": {
+                "attributes": [
+                    "primary_key",
+                    "organism",
+                    "formatted_length"
+                ],
+            }
+        }
+        # workaround for problematic urlencoding if organism contains '#'
+        params = "?organism=" + params['organism'] + \
+                 "&reportConfig=" + json.dumps(params['reportConfig'])
+        res = s.get(url + params, verify=True)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
         if(res.ok):
@@ -37,15 +53,16 @@ class SequenceProvider(object):
             res.raise_for_status()
 
     def __init__(self, baseurl, organism, login=None):
-        self.login = parse_login(login)
         self.baseurl = baseurl
-        url = ('{0}/webservices/GenomicSequenceQuestions/' +
-               'SequencesByTaxon.json' +
-               '?organism={1}&o-fields=primary_key').format(baseurl, organism.replace('#', "%23"))
-        res = self._get_json(url)
+        self.organism = organism
+        self.login = parse_login(login)
+        
+        self.url = '{0}/service/record-types/genomic-sequence/searches/SequencesByTaxon/reports'.format(baseurl)
+        
+        res = self._get_json()
         seqids = []
-        for v in res['response']['recordset']['records']:
-            seqids.append(v['id'])
+        for v in res['records']:
+            seqids.append(v['displayName'])
         logger.info('  needing to retrieve %s seqs for organism %s' % (len(seqids), organism))
         parsed_url = urlparse(baseurl)
         self.baseurl = "%s://%s" % (parsed_url.scheme, parsed_url.netloc)
