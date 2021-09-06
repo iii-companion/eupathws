@@ -29,7 +29,6 @@ class SequenceProvider(object):
     def _get_json(self):
         url = self.url + '/standard'
         logger.info('  retrieving %s' % url)
-        s = get_session(self.baseurl, self.login)
 
         params = {
             "organism": self.organism.replace("#","%23"),
@@ -44,7 +43,7 @@ class SequenceProvider(object):
         # workaround for problematic urlencoding if organism contains '#'
         params = "?organism=" + params['organism'] + \
                  "&reportConfig=" + json.dumps(params['reportConfig'])
-        res = s.get(url + params, verify=True)
+        res = self.session.get(url + params, verify=True)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
         if(res.ok):
@@ -52,10 +51,10 @@ class SequenceProvider(object):
         else:
             res.raise_for_status()
 
-    def __init__(self, baseurl, organism, login=None):
+    def __init__(self, baseurl, organism, session=None):
         self.baseurl = baseurl
         self.organism = organism
-        self.login = parse_login(login)
+        self.session = session
         
         self.url = '{0}/service/record-types/genomic-sequence/searches/SequencesByTaxon/reports'.format(baseurl)
         
@@ -72,8 +71,7 @@ class SequenceProvider(object):
         payload = {'project_id': project_id,
                    'ids': '\n'.join(seqids)}
         url = ('{0}/cgi-bin/contigSrt').format(self.baseurl)
-        s = get_session(self.baseurl, self.login)
-        res = s.post(url, data=payload)
+        res = self.session.post(url, data=payload)
         if not res.ok:
             res.raise_for_status()
         self.out = res.text
