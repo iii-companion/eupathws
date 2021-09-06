@@ -68,6 +68,7 @@ class SequenceProvider(object):
         project_id = parsed_url.netloc.split('.')[0].capitalize()
         project_id = re.sub('db$', 'DB', project_id)
         project_id = project_id.replace('Tritryp', 'TriTryp')
+        project_id = project_id.replace('Vectorbase', 'VectorBase')
         payload = {'project_id': project_id,
                    'ids': '\n'.join(seqids)}
         url = ('{0}/cgi-bin/contigSrt').format(self.baseurl)
