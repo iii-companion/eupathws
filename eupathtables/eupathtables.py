@@ -17,7 +17,6 @@
 
 import collections
 import re
-from eupathtables.login import get_session, parse_login
 try:
     from StringIO import StringIO
 except ImportError:
@@ -221,10 +220,10 @@ class WebServiceIterator(object):
         r.raise_for_status()
         return self._parse_table(r.text, table)
 
-    def __init__(self, baseurl, organism, cache=False, login=None):
+    def __init__(self, baseurl, organism, cache=False, session=None):
         self.baseurl = baseurl
         self.organism = organism
-        self.login = parse_login(login)
+        self.session = session
         self.fields = ['annotated_go_function',
                        'gene_location_text',
                        'location_text',
@@ -244,8 +243,6 @@ class WebServiceIterator(object):
                        'GOTerms']
 
         self.url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)
-
-        self.session = get_session(self.baseurl, self.login)
 
         genes = {}
 

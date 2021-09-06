@@ -21,6 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 from eupathtables.eupathtables import WebServiceIterator, TableInStream
+from eupathtables.login import parse_login, get_session
 from eupathtables.sequenceaccess import SequenceProvider
 from gt.extended import GFF3OutStream
 from contextlib import contextmanager
@@ -86,8 +87,12 @@ def download_file(url, local_filename=None):
 
 def create_fileset_for_organism(baseurl, organism, login):
     logger.info("fetching data for organism %s" % organism)
+    
+    login = parse_login(login)
+    session = get_session(baseurl, login)
+    
     wsit = WebServiceIterator(baseurl, organism, cache=False,
-                              login=login)
+                              session=session)
     laststream = table_in_stream = TableInStream(wsit)
     laststream = GFF3OutStream(table_in_stream)
 
@@ -103,7 +108,7 @@ def create_fileset_for_organism(baseurl, organism, login):
         fd.write("{0}".format(f.getvalue().decode('utf-8')))
 
     # download FASTA for organism
-    sp = SequenceProvider(baseurl, organism, login=login)
+    sp = SequenceProvider(baseurl, organism, session=session)
     sp.to_file("%s.fasta" % organism.replace('/', '_'))
 
     # write out GAF for organism
