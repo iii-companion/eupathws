@@ -61,3 +61,8 @@ target/
 
 # Virtual environment
 venv/
+
+# Output files
+*.fasta
+*.gaf
+*.gff3
