@@ -15,11 +15,11 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-from eupathtables.login import parse_login, get_session
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-import json
 import logging
-import re
+import urllib
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -27,57 +27,38 @@ logging.basicConfig(level=logging.INFO)
 class SequenceProvider(object):
 
     def _get_json(self):
-        url = self.url + '/standard'
-        logger.info('  retrieving %s' % url)
-
-        params = {
-            "organism": self.organism.replace("#","%23"),
-            "reportConfig": {
-                "attributes": [
-                    "primary_key",
-                    "organism",
-                    "formatted_length"
-                ],
-            }
-        }
-        # workaround for problematic urlencoding if organism contains '#'
-        params = "?organism=" + params['organism'] + \
-                 "&reportConfig=" + json.dumps(params['reportConfig'])
-        res = self.session.get(url + params, verify=True)
+        logger.info('  retrieving %s' % self.url)
+        
+        res = self.session.get(self.url, verify=True)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
-        if(res.ok):
+        if res.ok:
             return res.json()
         else:
             res.raise_for_status()
 
     def __init__(self, baseurl, organism, session=None):
-        self.baseurl = baseurl
-        self.organism = organism
         self.session = session
-        
-        self.url = '{0}/service/record-types/genomic-sequence/searches/SequencesByTaxon/reports'.format(baseurl)
-        
-        res = self._get_json()
-        seqids = []
+        field = "URLGenomeFasta"
+        parsed_baseurl = urlparse(baseurl)
+        baseurl = "%s://%s" % (parsed_baseurl.scheme, parsed_baseurl.netloc)
+        self.url = '{0}/a/service/record-types/organism/searches/GenomeDataTypes/reports/standard?reportConfig={{\"attributes\":[\"{1}\"]}}'.format(baseurl, field)
+
+        res = self._get_json()                
+
+        self.download_url = ''
         for v in res['records']:
-            seqids.append(v['displayName'])
-        logger.info('  needing to retrieve %s seqs for organism %s' % (len(seqids), organism))
-        parsed_url = urlparse(baseurl)
-        self.baseurl = "%s://%s" % (parsed_url.scheme, parsed_url.netloc)
-        project_id = parsed_url.netloc.split('.')[0].capitalize()
-        project_id = re.sub('db$', 'DB', project_id)
-        project_id = project_id.replace('Tritryp', 'TriTryp')
-        project_id = project_id.replace('Vectorbase', 'VectorBase')
-        payload = {'project_id': project_id,
-                   'ids': '\n'.join(seqids)}
-        url = ('{0}/cgi-bin/contigSrt').format(self.baseurl)
-        res = self.session.post(url, data=payload)
-        if not res.ok:
-            res.raise_for_status()
-        self.out = res.text
+            # Remove html formatting from displayName
+            if BeautifulSoup(v['displayName']).text == organism:
+                self.download_url = v['attributes'][field]
+                break
+        if not self.download_url:
+            raise RuntimeError("Failed to establish fasta download location for organism %s" % organism)
 
     def to_file(self, filename):
-        f = open(filename, 'w+')
-        f.write(self.out)
-        f.close()
+        logger.info("Retrieving fasta file from %s" % self.download_url)
+        try:
+            urllib.request.urlretrieve(self.download_url, filename)
+        except urllib.error.URLError as e:
+            logging.error("Cannot retrieve file from url: {0}. Please check the URL is correct. In case of an outage at EuPathDB please try again later.\n\n{1}".format(self.download_url, e))
+            raise SystemExit()
