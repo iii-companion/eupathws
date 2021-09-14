@@ -20,7 +20,14 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import argparse
-from eupathtables.fileset import create_fileset_for_organism
+import logging
+from eupathtables.fileset import create_fileset_for_organism, has_all_files
+from eupathtables.login import parse_login, get_session
+
+os.environ['GT_RETAINIDS'] = "yes"
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='Export EuPathDB annotations to Companion '
                                              'compatible reference input.')
@@ -30,6 +37,15 @@ parser.add_argument('organism', metavar='ORG', type=str, help='organism')
 parser.add_argument('-l', '--login', metavar='STRING', type=str,
                     help='login credentials (for locked QA sites) format user:pass',
                     dest='login')
+parser.add_argument('-f', '--force', action="store_true",
+                    help='force re-download of all organisms',
+                    dest='force')
 args = parser.parse_args()
 
-create_fileset_for_organism(args.baseurl, args.organism, args.login)
+login = parse_login(args.login)
+session = get_session(args.baseurl, login)
+
+if (not has_all_files(args.organism)) or args.force:
+    create_fileset_for_organism(args.baseurl, args.organism, session)
+else:
+    logger.info("skipping organism %s, files already present" % args.organism)

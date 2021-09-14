@@ -58,3 +58,11 @@ target/
 
 # Mac OS X metadata
 ._*
+
+# Virtual environment
+venv/
+
+# Output files
+*.fasta
+*.gaf
+*.gff3

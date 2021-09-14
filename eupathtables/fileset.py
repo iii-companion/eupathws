@@ -84,10 +84,11 @@ def download_file(url, local_filename=None):
     return local_filename
 
 
-def create_fileset_for_organism(baseurl, organism, login):
+def create_fileset_for_organism(baseurl, organism, session):
     logger.info("fetching data for organism %s" % organism)
+    
     wsit = WebServiceIterator(baseurl, organism, cache=False,
-                              login=login)
+                              session=session)
     laststream = table_in_stream = TableInStream(wsit)
     laststream = GFF3OutStream(table_in_stream)
 
@@ -103,7 +104,7 @@ def create_fileset_for_organism(baseurl, organism, login):
         fd.write("{0}".format(f.getvalue().decode('utf-8')))
 
     # download FASTA for organism
-    sp = SequenceProvider(baseurl, organism, login=login)
+    sp = SequenceProvider(baseurl, organism, session=session)
     sp.to_file("%s.fasta" % organism.replace('/', '_'))
 
     # write out GAF for organism
