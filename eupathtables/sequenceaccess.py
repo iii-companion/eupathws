@@ -49,7 +49,7 @@ class SequenceProvider(object):
         self.download_url = ''
         for v in res['records']:
             # Remove html formatting from displayName
-            if BeautifulSoup(v['displayName']).text == organism:
+            if BeautifulSoup(v['displayName'], 'html.parser').text == organism:
                 self.download_url = v['attributes'][field]
                 break
         if not self.download_url:
