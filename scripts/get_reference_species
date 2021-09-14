@@ -23,6 +23,7 @@ import argparse
 from bs4 import BeautifulSoup
 
 from eupathtables.genemetrics import GeneMetrics
+from eupathtables.login import parse_login, get_session
 
 parser = argparse.ArgumentParser(description='Enumerate reference species ' +
                                              'per EuPathDB database.')
@@ -36,7 +37,10 @@ parser.add_argument('-a', '--all', action="store_true",
                     dest='all')
 args = parser.parse_args()
 
-gm = GeneMetrics(args.baseurl, login=args.login)
+login = parse_login(args.login)
+session = get_session(args.baseurl, login)
+
+gm = GeneMetrics(args.baseurl, session)
 
 for g in gm:
     if (g['is_reference_strain'] == 'yes' or args.all) and g['is_annotated_genome'] == '1':
