@@ -21,7 +21,6 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 from eupathtables.eupathtables import WebServiceIterator, TableInStream
-from eupathtables.login import parse_login, get_session
 from eupathtables.sequenceaccess import SequenceProvider
 from gt.extended import GFF3OutStream
 from contextlib import contextmanager
@@ -85,11 +84,8 @@ def download_file(url, local_filename=None):
     return local_filename
 
 
-def create_fileset_for_organism(baseurl, organism, login):
+def create_fileset_for_organism(baseurl, organism, session):
     logger.info("fetching data for organism %s" % organism)
-    
-    login = parse_login(login)
-    session = get_session(baseurl, login)
     
     wsit = WebServiceIterator(baseurl, organism, cache=False,
                               session=session)

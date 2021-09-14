@@ -41,7 +41,10 @@ parser.add_argument('-f', '--force', action="store_true",
                     dest='force')
 args = parser.parse_args()
 
-gm = GeneMetrics(args.baseurl, login=args.login)
+login = parse_login(args.login)
+session = get_session(args.baseurl, login)
+
+gm = GeneMetrics(args.baseurl, session)
 for g in gm:
     if (g['is_reference_strain'] == '1' or args.all) and g['is_annotated_genome'] == '1':
         if (not has_all_files(g['organism'])) or args.force:

@@ -22,9 +22,8 @@ from eupathtables.login import parse_login, get_session
 
 class GeneMetrics(object):
 
-    def __init__(self, baseurl, login=None):
+    def __init__(self, baseurl, session):
         self.baseurl = baseurl
-        self.login = parse_login(login)
         self.fields = ["organism",
                        "ncbi_tax_id",
                        "is_reference_strain",
@@ -43,8 +42,7 @@ class GeneMetrics(object):
             }
         }
 
-        s = get_session(self.baseurl, self.login)
-        res = s.post(url, data=json.dumps(query_payload), headers={'Content-Type': 'application/json'})
+        res = session.post(url, data=json.dumps(query_payload), headers={'Content-Type': 'application/json'})
         self.orgs = collections.deque()
         if(res.ok):
             j = res.json()
