@@ -23,7 +23,9 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from eupathtables.gaf_iterator import GAFIterator
 from eupathtables.eupathtables import WebServiceIterator, TableInStream
+from eupathtables.login import parse_login, get_session
 from gt.extended import GFF3OutStream
+
 
 parser = argparse.ArgumentParser(description='Export EuPathDB annotations to Companion '
                                              'compatible reference input.')
@@ -49,8 +51,11 @@ parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
 args = parser.parse_args()
 
+login = parse_login(args.login)
+session = get_session(args.baseurl, login)
+
 wsit = WebServiceIterator(args.baseurl, args.organism,
-                          cache=(not args.no_cache), login=args.login)
+                          cache=(not args.no_cache), session=session)
 laststream = table_in_stream = TableInStream(wsit)
 
 if not args.no_gff:
