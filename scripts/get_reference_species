@@ -20,6 +20,8 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import argparse
+from bs4 import BeautifulSoup
+
 from eupathtables.genemetrics import GeneMetrics
 
 parser = argparse.ArgumentParser(description='Enumerate reference species ' +
@@ -37,5 +39,5 @@ args = parser.parse_args()
 gm = GeneMetrics(args.baseurl, login=args.login)
 
 for g in gm:
-    if (g['is_reference_strain'] == '1' or args.all) and g['is_annotated_genome'] == '1':
-        print(g['organism'])
+    if (g['is_reference_strain'] == 'yes' or args.all) and g['is_annotated_genome'] == '1':
+        print(BeautifulSoup(g['organism'], 'html.parser').text)

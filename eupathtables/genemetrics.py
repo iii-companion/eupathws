@@ -16,7 +16,7 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import collections
-import requests
+import json
 from eupathtables.login import parse_login, get_session
 
 
@@ -31,19 +31,27 @@ class GeneMetrics(object):
                        "is_annotated_genome",
                        "URLGenomeFasta",
                        "URLgff"]
-        url = ('{0}/webservices/OrganismQuestions/GeneMetrics.json?o-fields={1}').format(self.baseurl, ','.join(self.fields))
+        url = "{0}/service/record-types/organism/searches/GeneMetrics/reports/standard".format(baseurl)
+        
+        query_payload = {
+            "searchConfig": {
+                "parameters": {},
+            },
+            "reportConfig": {
+                "tables": [],
+                "attributes": self.fields,
+            }
+        }
+
         s = get_session(self.baseurl, self.login)
-        res = s.get(url, verify=True)
+        res = s.post(url, data=json.dumps(query_payload), headers={'Content-Type': 'application/json'})
         self.orgs = collections.deque()
         if(res.ok):
             j = res.json()
         else:
             res.raise_for_status()
-        for v in j['response']['recordset']['records']:
-            item = {}
-            for f in v['fields']:
-                item[f['name']] = f['value']
-            self.orgs.append(item)
+        for rec in j['records']:        
+            self.orgs.append(rec['attributes'])
 
     def __iter__(self):
         return self
