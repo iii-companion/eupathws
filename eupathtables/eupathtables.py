@@ -94,7 +94,7 @@ class WebServiceIterator(object):
             entry['End'] = int(entry['End'])
             entry['Strand'] = "+-"[int(entry['Is Reversed'])]
             for transcript in entry['Transcript ID(s)'].split(','):
-                target_transcript = transcript.strip()
+                target_transcript = transcript.strip().replace('-', '_')
                 assert target_transcript
                 if not target_transcript in target_gene['Gene Model']:
                     target_gene['Gene Model'][target_transcript] = []
@@ -126,7 +126,7 @@ class WebServiceIterator(object):
             if 'GO Terms' not in target_gene:
                 target_gene['GO Terms'] = {}
             for transcript in entry['Transcript ID(s)'].split(','):
-                target_transcript = transcript.strip()
+                target_transcript = transcript.strip().replace('-', '_')
                 assert target_transcript                    
                 if target_transcript not in target_gene['GO Terms']:
                     target_gene['GO Terms'][target_transcript] = []
