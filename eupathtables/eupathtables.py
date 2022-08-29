@@ -92,7 +92,7 @@ class WebServiceIterator(object):
             entry['Seqid'] = entry['Sequence_id']
             entry['Start'] = int(entry['Start'])
             entry['End'] = int(entry['End'])
-            entry['Strand'] = "+-"[int(entry['Is Reversed'])]
+            # entry['Strand'] = "+-"[int(entry['Is Reversed'])]
             for transcript in entry['Transcript ID(s)'].split(','):
                 target_transcript = transcript.strip().replace('-', '_')
                 assert target_transcript
@@ -135,7 +135,8 @@ class WebServiceIterator(object):
     def _process_gene_transcripts(self, table, genes):
         # [Gene ID] [Transcript]    [# exons]	
         # [Transcript length]   [Protein length]    [Transcript Type]
-        for entry in table:            
+        cleaned_table = [{ k:v.strip() for k, v in entry.items()} for entry in table]
+        for entry in cleaned_table:
             entry['Gene ID'] = entry['Gene ID'].split(',')[0].strip()
             if entry['Gene ID'] not in genes:
                 raise RuntimeError("orphan gene model with ID '%s' doesn't " +
@@ -192,7 +193,7 @@ class WebServiceIterator(object):
         out = []
         for line in s:
             if i == 0:
-                headers = line.split('\t')
+                headers = line.strip().split('\t')
                 i += 1
             else:
                 res = {}
@@ -248,7 +249,7 @@ class WebServiceIterator(object):
                        'gene_type',
                        'is_pseudo',
                        'gene_name',
-                       'uniprot_id',
+                      # 'uniprot_id',
                        'sequence_id']
 
         self.url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)

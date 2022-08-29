@@ -67,7 +67,7 @@ def stdout_redirector(stream):
 
 
 def has_all_files(organism):
-    for sfx in ['.fasta', '.gaf', '.gff3']:
+    for sfx in ['_Genome.fasta', '.gaf', '.gff3', '_Proteins.fasta']:
         if not os.path.isfile("%s%s" % (organism, sfx)):
             return False
     return True
@@ -105,7 +105,11 @@ def create_fileset_for_organism(baseurl, organism, session):
 
     # download FASTA for organism
     sp = SequenceProvider(baseurl, organism, session=session)
-    sp.to_file("%s.fasta" % organism.replace('/', '_'))
+    sp.to_file("%s_Genome.fasta" % organism.replace('/', '_'))
+    
+    # download Proteins FASTA for organism
+    sp = SequenceProvider(baseurl, organism, session=session, typ="protein")
+    sp.to_file("%s_Proteins.fasta" % organism.replace('/', '_'))
 
     # write out GAF for organism
     table_in_stream.go_coll.to_gafv1(open('%s.gaf' % organism.replace('/', '_'), "w+"))

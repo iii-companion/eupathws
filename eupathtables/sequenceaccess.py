@@ -37,9 +37,9 @@ class SequenceProvider(object):
         else:
             res.raise_for_status()
 
-    def __init__(self, baseurl, organism, session=None):
+    def __init__(self, baseurl, organism, session=None, typ="genomic"):
         self.session = session
-        field = "URLGenomeFasta"
+        field = "URLproteinFasta" if typ == "protein" else "URLGenomeFasta"
         parsed_baseurl = urlparse(baseurl)
         baseurl = "%s://%s" % (parsed_baseurl.scheme, parsed_baseurl.netloc)
         self.url = '{0}/a/service/record-types/organism/searches/GenomeDataTypes/reports/standard?reportConfig={{\"attributes\":[\"{1}\"]}}'.format(baseurl, field)
