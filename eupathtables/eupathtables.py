@@ -167,8 +167,15 @@ class WebServiceIterator(object):
         url = self.url + '/standard'
         logger.info('  retrieving %s' % url)        
 
+        # workaround for ref species that contain "[" being in wrong format for query.
+        organism = self.organism
+        if "[" in organism:
+            organism = organism.replace("[", "").replace("]", "").split(" ")
+            organism.insert(-1, "strain")
+            organism = " ".join(organism)
+
         params = {
-            'organism': self.organism.replace('#',"%23"),
+            'organism': organism.replace('#',"%23"),
             'reportConfig': {
                 "attributes": self.fields,
             }
