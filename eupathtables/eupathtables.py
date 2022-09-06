@@ -24,6 +24,7 @@ except ImportError:
 import six
 import json
 import urllib
+import urllib.parse
 import sys
 from eupathtables.go_collection import GOCollection
 try:
@@ -168,7 +169,7 @@ class WebServiceIterator(object):
         logger.info('  retrieving %s' % url)        
 
         params = {
-            'organism': self.organism.replace('#',"%23"),
+            'organism': urllib.parse.quote(self.organism),
             'reportConfig': {
                 "attributes": self.fields,
             }
