@@ -44,4 +44,4 @@ gm = GeneMetrics(args.baseurl, session)
 
 for g in gm:
     if (g['is_reference_strain'] == 'yes' or args.all) and g['is_annotated_genome'] == '1':
-        print(BeautifulSoup(g['displayName'], 'html.parser').text)
+        print(BeautifulSoup(g['organism_name'], 'html.parser').text)

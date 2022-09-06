@@ -25,6 +25,7 @@ class GeneMetrics(object):
     def __init__(self, baseurl, session):
         self.baseurl = baseurl
         self.fields = ["organism",
+                       "organism_name",
                        "ncbi_tax_id",
                        "is_reference_strain",
                        "is_annotated_genome",
@@ -49,7 +50,6 @@ class GeneMetrics(object):
         else:
             res.raise_for_status()
         for rec in j['records']:
-            rec['attributes'].update({'displayName': rec['displayName']})
             self.orgs.append(rec['attributes'])
 
     def __iter__(self):
