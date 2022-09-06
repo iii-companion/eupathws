@@ -20,7 +20,6 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import argparse
-from bs4 import BeautifulSoup
 
 from eupathtables.genemetrics import GeneMetrics
 from eupathtables.login import parse_login, get_session
@@ -44,4 +43,4 @@ gm = GeneMetrics(args.baseurl, session)
 
 for g in gm:
     if (g['is_reference_strain'] == 'yes' or args.all) and g['is_annotated_genome'] == '1':
-        print(BeautifulSoup(g['organism_name'], 'html.parser').text)
+        print(g['organism_name'])
