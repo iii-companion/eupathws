@@ -48,7 +48,8 @@ class GeneMetrics(object):
             j = res.json()
         else:
             res.raise_for_status()
-        for rec in j['records']:        
+        for rec in j['records']:
+            rec['attributes'].update({'displayName': rec['displayName']})
             self.orgs.append(rec['attributes'])
 
     def __iter__(self):
