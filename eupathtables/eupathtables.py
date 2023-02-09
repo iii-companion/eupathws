@@ -256,11 +256,14 @@ class WebServiceIterator(object):
         self.url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)
 
         genes = {}
+        chromosomes = {}
 
         # get gene centric information
         taxon_json = self._get_json()
         for v in taxon_json['records']:
             self._create_gene(genes, v)
+            if v['attributes']['chromosome'] != "Not Assigned":
+                chromosomes[v['attributes']['sequence_id']] = v['attributes']['chromosome']
 
         # do fast table queries via new web service
         tbl = self._get_table('GeneModelDump')
@@ -273,6 +276,7 @@ class WebServiceIterator(object):
         self._process_gene_transcripts(tbl, genes)
 
         self.genes = collections.deque(list(genes.values()))
+        self.chromosomes = chromosomes
 
 
     def next(self):

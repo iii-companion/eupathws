@@ -26,6 +26,7 @@ from gt.extended import GFF3OutStream
 from contextlib import contextmanager
 import ctypes
 import io
+import json
 import tempfile
 import requests
 libc = ctypes.CDLL(None)
@@ -102,6 +103,10 @@ def create_fileset_for_organism(baseurl, organism, session):
     # write out GFF for organism
     with open('%s.gff3' % organism.replace('/', '_'), 'w') as fd:
         fd.write("{0}".format(f.getvalue().decode('utf-8')))
+
+    # write out chromosomes JSON for organism
+    with open('%s_chr.json' % organism.replace('/', '_'), 'w') as fp:
+        json.dump(wsit.chromosomes, fp)
 
     # download FASTA for organism
     sp = SequenceProvider(baseurl, organism, session=session)
