@@ -166,7 +166,6 @@ class WebServiceIterator(object):
                 v[key] = val
     
     def _find_chromosome(self, chromosomes, item_attributes, sequence_records):
-        print(item_attributes['sequence_id'])
         if item_attributes['sequence_id'] not in chromosomes:
             chr = ""
             sequence_types = [s['attributes']['sequence_type'].lower() for s in sequence_records if s['attributes']['primary_key'] == item_attributes['sequence_id']]
