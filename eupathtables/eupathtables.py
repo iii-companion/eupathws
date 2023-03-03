@@ -15,6 +15,7 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+import builtins
 import collections
 import re
 try:
@@ -163,15 +164,31 @@ class WebServiceIterator(object):
                     v['strand'] = m.group(4)
             else:
                 v[key] = val
+    
+    def _find_chromosome(self, chromosomes, item_attributes, sequence_records):
+        print(item_attributes['sequence_id'])
+        if item_attributes['sequence_id'] not in chromosomes:
+            chr = ""
+            sequence_types = [s['attributes']['sequence_type'].lower() for s in sequence_records if s['attributes']['primary_key'] == item_attributes['sequence_id']]
+            if item_attributes['chromosome'] != "Not Assigned":
+                chr = item_attributes['chromosome']
+            elif builtins.any('chromosome' in s for s in sequence_types):
+                if builtins.any('mit' in s for s in sequence_types):
+                    chr = "MIT"
+                elif builtins.any('api' in s for s in sequence_types):
+                    chr = "API"
+            if chr:
+                logger.info('   found chromosome %s' % item_attributes['sequence_id'])
+                chromosomes[item_attributes['sequence_id']] = chr
 
-    def _get_json(self):
-        url = self.url + '/standard'
+    def _get_json(self, url, fields):
+        url += '/standard'
         logger.info('  retrieving %s' % url)        
 
         params = {
             'organism': urllib.parse.quote(self.organism),
             'reportConfig': {
-                "attributes": self.fields,
+                "attributes": fields,
             }
         }
 
@@ -239,7 +256,7 @@ class WebServiceIterator(object):
         self.baseurl = baseurl
         self.organism = organism
         self.session = session
-        self.fields = ['annotated_go_function',
+        genes_fields = ['annotated_go_function',
                        'gene_location_text',
                        'location_text',
                        'gene_type',
@@ -252,18 +269,22 @@ class WebServiceIterator(object):
                        'gene_name',
                       # 'uniprot_id',
                        'sequence_id']
+        
+        sequence_fields = ['primary_key', 'sequence_type']
 
-        self.url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)
-
+        self.url = genes_url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)
+        sequence_url = '{0}/service/record-types/genomic-sequence/searches/SequencesByTaxon/reports'.format(baseurl)
+         
         genes = {}
         chromosomes = {}
 
         # get gene centric information
-        taxon_json = self._get_json()
+        taxon_json = self._get_json(genes_url, genes_fields)
+        # get sequence centric information
+        sequence_json = self._get_json(sequence_url, sequence_fields)
         for v in taxon_json['records']:
             self._create_gene(genes, v)
-            if v['attributes']['chromosome'] != "Not Assigned":
-                chromosomes[v['attributes']['sequence_id']] = v['attributes']['chromosome']
+            self._find_chromosome(chromosomes, v['attributes'], sequence_json['records'])
 
         # do fast table queries via new web service
         tbl = self._get_table('GeneModelDump')
