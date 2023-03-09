@@ -15,7 +15,6 @@
 #  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import logging
 import urllib
@@ -37,19 +36,18 @@ class SequenceProvider(object):
         else:
             res.raise_for_status()
 
-    def __init__(self, baseurl, organism, session=None):
+    def __init__(self, baseurl, organism, session=None, typ="genomic"):
         self.session = session
-        field = "URLGenomeFasta"
+        field = "URLproteinFasta" if typ == "protein" else "URLGenomeFasta"
         parsed_baseurl = urlparse(baseurl)
         baseurl = "%s://%s" % (parsed_baseurl.scheme, parsed_baseurl.netloc)
-        self.url = '{0}/a/service/record-types/organism/searches/GenomeDataTypes/reports/standard?reportConfig={{\"attributes\":[\"{1}\"]}}'.format(baseurl, field)
+        self.url = '{0}/a/service/record-types/organism/searches/GenomeDataTypes/reports/standard?reportConfig={{\"attributes\":[\"{1}\", \"organism_name\"]}}'.format(baseurl, field)
 
         res = self._get_json()                
 
         self.download_url = ''
         for v in res['records']:
-            # Remove html formatting from displayName
-            if BeautifulSoup(v['displayName'], 'html.parser').text == organism:
+            if v['attributes']['organism_name'] == organism:
                 self.download_url = v['attributes'][field]
                 break
         if not self.download_url:
