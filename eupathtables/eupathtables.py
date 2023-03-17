@@ -18,10 +18,8 @@
 import builtins
 import collections
 import re
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+from html.parser import HTMLParser
+from io import StringIO
 import six
 import json
 import urllib
