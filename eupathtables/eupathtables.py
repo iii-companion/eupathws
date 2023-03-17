@@ -39,6 +39,18 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
+class MLStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs = True
+        self.text = StringIO()
+    def handle_data(self, d):
+        self.text.write(d)
+    def get_data(self):
+        return self.text.getvalue()
+
 class WebServiceIterator(object):
 
     typemap = {'Intron': 'intron',
@@ -60,7 +72,7 @@ class WebServiceIterator(object):
                     raise RuntimeError("inconsistent strands within " +
                                        "transcript %s" % transcript_id)
                 strand = strands.pop()
-                genemodel.sort(key=lambda feat: feat['Start'])                            
+                genemodel.sort(key=lambda feat: feat['Start'])
                 seen_coding = False
                 for feature in genemodel:
                     if feature['Type'] == 'UTR':
@@ -127,13 +139,13 @@ class WebServiceIterator(object):
                 target_gene['GO Terms'] = {}
             for transcript in entry['Transcript ID(s)'].split(','):
                 target_transcript = transcript.strip().replace('-', '_')
-                assert target_transcript                    
+                assert target_transcript
                 if target_transcript not in target_gene['GO Terms']:
                     target_gene['GO Terms'][target_transcript] = []
                 target_gene['GO Terms'][target_transcript].append(entry)
-    
+
     def _process_gene_transcripts(self, table, genes):
-        # [Gene ID] [Transcript]    [# exons]	
+        # [Gene ID] [Transcript]    [# exons]
         # [Transcript length]   [Protein length]    [Transcript Type]
         cleaned_table = [{ k:v.strip() for k, v in entry.items()} for entry in table]
         for entry in cleaned_table:
@@ -141,7 +153,7 @@ class WebServiceIterator(object):
             if entry['Gene ID'] not in genes:
                 raise RuntimeError("orphan gene model with ID '%s' doesn't " +
                                     "have info in ByTaxon result"%(entry['Gene ID']))
-            target_gene = genes[entry['Gene ID']]            
+            target_gene = genes[entry['Gene ID']]
             target_gene['transcript_type'] = entry['Transcript Type']
             target_gene['transcript_length'] = entry['Transcript length']
 
@@ -162,7 +174,7 @@ class WebServiceIterator(object):
                     v['strand'] = m.group(4)
             else:
                 v[key] = val
-    
+
     def _find_chromosome(self, chromosomes, item_attributes, sequence_records):
         if item_attributes['sequence_id'] not in chromosomes:
             chr = ""
@@ -180,7 +192,7 @@ class WebServiceIterator(object):
 
     def _get_json(self, url, fields):
         url += '/standard'
-        logger.info('  retrieving %s' % url)        
+        logger.info('  retrieving %s' % url)
 
         params = {
             'organism': urllib.parse.quote(self.organism),
@@ -192,6 +204,24 @@ class WebServiceIterator(object):
         # workaround for problematic urlencoding if organism contains '#'
         params = "?organism=" + params['organism'] + \
                  "&reportConfig=" + json.dumps(params['reportConfig'])
+        res = self.session.get(url + params, verify=True)
+        if "autologin" in res.text or 'Login</title>' in res.text:
+            raise RuntimeError("Login failed -- please check user credentials.")
+        if(res.ok):
+            return res.json()
+        else:
+            res.raise_for_status()
+
+    def _get_all_datasets_json(self, url):
+        url += '/standard'
+        logger.info('   retrieving %s' % url)
+
+        params = {
+            'reportConfig': {
+                "attributes": ["dataset_name"],
+            }
+        }
+        params = "?reportConfig=" + json.dumps(params['reportConfig'])
         res = self.session.get(url + params, verify=True)
         if "autologin" in res.text or 'Login</title>' in res.text:
             raise RuntimeError("Login failed -- please check user credentials.")
@@ -249,6 +279,25 @@ class WebServiceIterator(object):
         r.raise_for_status()
         return self._parse_table(r.text, table)
 
+    def _get_dataset_table(self, url, dataset):
+        url += '/tableTabular'
+        logger.info(dataset)
+
+        query_payload = {
+            "searchConfig": {
+                "parameters": {"dataset_name": dataset},
+            },
+            "reportConfig": {
+                "tables": ["DatasetHistory"],
+                "includeHeader": True,
+                "attachmentType": "plain",
+            }
+        }
+
+        r = self.session.post(url, data=json.dumps(query_payload), headers={'Content-Type': 'application/json'})
+        r.raise_for_status()
+        return self._parse_table(r.text, "DatasetHistory")
+
     def __init__(self, baseurl, organism, cache=False, session=None):
         self.baseurl = baseurl
         self.organism = organism
@@ -266,15 +315,30 @@ class WebServiceIterator(object):
                        'gene_name',
                       # 'uniprot_id',
                        'sequence_id']
-        
+
         sequence_fields = ['primary_key', 'sequence_type']
 
-        self.url = genes_url = '{0}/service/record-types/transcript/searches/GenesByTaxon/reports'.format(baseurl)
-        sequence_url = '{0}/service/record-types/genomic-sequence/searches/SequencesByTaxon/reports'.format(baseurl)
-         
+        url = '{}/service/record-types'.format(baseurl)
+        self.url = genes_url = '{0}/transcript/searches/GenesByTaxon/reports'.format(url)
+        sequence_url = '{0}/genomic-sequence/searches/SequencesByTaxon/reports'.format(url)
+        datasets_url = '{0}/dataset/searches/AllDatasets/reports'.format(url)
+        dataset_release_url = '{0}/dataset/searches/DatasetsByDatasetNames/reports'.format(url)
+
         genes = {}
         chromosomes = {}
+        meta = {}
 
+        # get dataset_name
+        datasets_json = self._get_all_datasets_json(datasets_url)
+        for ds in datasets_json['records']:
+            s = MLStripper()
+            s.feed(ds['displayName'])
+            if s.get_data().startswith(organism):
+                dataset_name = ds['attributes']['dataset_name']
+                break
+        tbl = self._get_dataset_table(dataset_release_url, dataset_name)
+        # take row corresponding to latest release
+        meta = sorted(tbl, key=lambda p: p["Release"])[-1]
         # get gene centric information
         taxon_json = self._get_json(genes_url, genes_fields)
         # get sequence centric information
@@ -295,6 +359,7 @@ class WebServiceIterator(object):
 
         self.genes = collections.deque(list(genes.values()))
         self.chromosomes = chromosomes
+        self.meta = meta
 
 
     def next(self):
@@ -331,7 +396,7 @@ if _gt_available:
 
         def make_noncoding(self, v, gene):
             if 'Gene Model' in v:
-                for transcript_id, transcript_model in six.iteritems(v['Gene Model']):                    
+                for transcript_id, transcript_model in six.iteritems(v['Gene Model']):
                     transcript = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, v['transcript_type']),
                                                                 int(v['start']),
                                                                 int(v['stop']),
@@ -348,7 +413,7 @@ if _gt_available:
 
         def make_coding(self, v, gene):
             if 'Gene Model' in v:
-                for transcript_id, transcript_model in six.iteritems(v['Gene Model']):                    
+                for transcript_id, transcript_model in six.iteritems(v['Gene Model']):
                     transcript = gt.extended.FeatureNode.create_new(v['seqid'], self.finaltype(v, "mRNA"),
                                                                 int(v['start']),
                                                                 int(v['stop']),
@@ -363,7 +428,7 @@ if _gt_available:
                                                                          int(f['Start']),
                                                                          int(f['End']),
                                                                          v['strand'])
-                            transcript.add_child(newfeat)                            
+                            transcript.add_child(newfeat)
 
                         else:
                             sys.stderr.write("invalid feature range, skipping "
@@ -414,7 +479,7 @@ if _gt_available:
                     if 'uniprot_id' in v and v['uniprot_id'] is not None:
                         for u in v['uniprot_id'].split(','):
                             if len(u) > 0:
-                                self.uniprots[u] = v['ID']                    
+                                self.uniprots[u] = v['ID']
 
                     # protein coding gene
                     if v['type'] == 'protein coding gene':
@@ -422,7 +487,7 @@ if _gt_available:
                     # non-coding RNA
                     elif v['type'] == 'ncRNA gene':
                         self.make_noncoding(v, gene)
-                    
+
                     break
 
                 #except:
