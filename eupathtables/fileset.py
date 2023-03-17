@@ -87,7 +87,7 @@ def download_file(url, local_filename=None):
 
 def create_fileset_for_organism(baseurl, organism, session):
     logger.info("fetching data for organism %s" % organism)
-    
+
     wsit = WebServiceIterator(baseurl, organism, cache=False,
                               session=session)
     laststream = table_in_stream = TableInStream(wsit)
@@ -108,10 +108,14 @@ def create_fileset_for_organism(baseurl, organism, session):
     with open('%s_chr.json' % organism.replace('/', '_'), 'w') as fp:
         json.dump(wsit.chromosomes, fp)
 
+    # write out metadata JSON for organism
+    with open('%s_meta.json' % organism.replace('/', '_'), 'w') as fp:
+        json.dump(wsit.meta, fp)
+
     # download FASTA for organism
     sp = SequenceProvider(baseurl, organism, session=session)
     sp.to_file("%s_Genome.fasta" % organism.replace('/', '_'))
-    
+
     # download Proteins FASTA for organism
     sp = SequenceProvider(baseurl, organism, session=session, typ="protein")
     sp.to_file("%s_Proteins.fasta" % organism.replace('/', '_'))
