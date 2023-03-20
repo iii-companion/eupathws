@@ -333,7 +333,7 @@ class WebServiceIterator(object):
         for ds in datasets_json['records']:
             s = MLStripper()
             s.feed(ds['displayName'])
-            if s.get_data().startswith(organism):
+            if s.get_data().startswith(" ".join(organism.split(" ")[:-1])) and organism.split(" ")[-1] in s.get_data():
                 dataset_name = ds['attributes']['dataset_name']
                 break
         tbl = self._get_dataset_table(dataset_release_url, dataset_name)
