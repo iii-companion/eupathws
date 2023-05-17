@@ -329,6 +329,7 @@ class WebServiceIterator(object):
         meta = {}
 
         # get dataset_name
+        dataset_name = ''
         datasets_json = self._get_all_datasets_json(datasets_url)
         for ds in datasets_json['records']:
             s = MLStripper()
@@ -336,9 +337,10 @@ class WebServiceIterator(object):
             if s.get_data().startswith(" ".join(organism.split(" ")[:-1])) and organism.split(" ")[-1] in s.get_data():
                 dataset_name = ds['attributes']['dataset_name']
                 break
-        tbl = self._get_dataset_table(dataset_release_url, dataset_name)
-        # take row corresponding to latest release
-        meta = sorted(tbl, key=lambda p: p["Release"])[-1]
+        if dataset_name:
+            tbl = self._get_dataset_table(dataset_release_url, dataset_name)
+            # take row corresponding to latest release
+            meta = sorted(tbl, key=lambda p: p["Release"])[-1]
         # get gene centric information
         taxon_json = self._get_json(genes_url, genes_fields)
         # get sequence centric information
