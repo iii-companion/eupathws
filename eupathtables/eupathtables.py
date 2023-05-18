@@ -339,8 +339,9 @@ class WebServiceIterator(object):
                 break
         if dataset_name:
             tbl = self._get_dataset_table(dataset_release_url, dataset_name)
-            # take row corresponding to latest release
-            meta = sorted(tbl, key=lambda p: p["Release"])[-1]
+            if tbl:
+                # take row corresponding to latest release
+                meta = sorted(tbl, key=lambda p: p["Release"])[-1]
         # get gene centric information
         taxon_json = self._get_json(genes_url, genes_fields)
         # get sequence centric information
